@@ -7,6 +7,7 @@ import { ColaboradoresModule } from './colaboradores/colaboradores.module';
 import { RegistrosPontoModule } from './registros-ponto/registros-ponto.module';
 import { TrocasEscalaModule } from './trocas-escala/trocas-escala.module';
 import { ApuracaoModule } from './apuracao/apuracao.module';
+import { ExtracoesPendentesModule } from './extracoes-pendentes/extracoes-pendentes.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ApuracaoModule } from './apuracao/apuracao.module';
     RegistrosPontoModule,
     TrocasEscalaModule,
     ApuracaoModule,
+    ExtracoesPendentesModule,
   ],
 })
 export class AppModule {}

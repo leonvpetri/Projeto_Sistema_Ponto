@@ -51,11 +51,12 @@ enum TipoRegistro {
 // COLABORADOR
 // ------------------------------------------------------------
 model Colaborador {
-  id    String  @id @default(uuid())
-  nome  String
-  cpf   String  @unique
-  setor String
-  ativo Boolean @default(true)
+  id       String  @id @default(uuid())
+  nome     String
+  cpf      String  @unique
+  telefone String? @unique // WhatsApp, formato E.164 (ex: 5534999999999) — usado para identificar quem mandou a foto
+  setor    String
+  ativo    Boolean @default(true)
 
   jornadaId String
   jornada   Jornada @relation(fields: [jornadaId], references: [id])
@@ -68,6 +69,7 @@ model Colaborador {
   registros            RegistroPonto[]
   ajustes              AjustePonto[]
   apuracoes            ApuracaoDiaria[]
+  extracoesPendentes   ExtracaoPendente[]
   trocasComoOriginal   TrocaEscala[]    @relation("EscalaOriginal")
   trocasComoSubstituto TrocaEscala[]    @relation("EscalaSubstituto")
 
@@ -194,4 +196,43 @@ model ApuracaoDiaria {
   calculadoEm DateTime @default(now())
 
   @@unique([colaboradorId, data])
+}
+
+// ------------------------------------------------------------
+// EXTRAÇÃO PENDENTE — foto recebida via WhatsApp (n8n/Zernio),
+// aguardando revisão do RH antes de virar RegistroPonto oficial.
+// Nunca grava direto em RegistroPonto: a extração por IA pode
+// errar (foto tremida, caligrafia da observação, etc.), então a
+// confirmação humana é obrigatória.
+// ------------------------------------------------------------
+enum StatusExtracao {
+  PENDENTE
+  CONFIRMADA
+  REJEITADA
+  SEM_IDENTIFICACAO // telefone não bateu com nenhum colaborador cadastrado
+}
+
+model ExtracaoPendente {
+  id String @id @default(uuid())
+
+  telefoneOrigem String // número que mandou a foto no WhatsApp
+  colaboradorId  String?
+  colaborador    Colaborador? @relation(fields: [colaboradorId], references: [id])
+
+  nomeExtraidoCartao String? // nome que a IA leu no cartão da foto
+  cpfExtraidoCartao  String? // CPF que a IA leu no cartão da foto
+  conferenciaOk      Boolean? // true se nome/CPF do cartão bateu com o colaborador do telefone
+
+  fotoUrl            String // referência/arquivo da imagem original, para auditoria
+  dadosExtraidosJson String // JSON bruto retornado pela extração (dias, horários, observações)
+
+  status         StatusExtracao @default(PENDENTE)
+  revisadoPor    String?
+  revisadoEm     DateTime?
+  motivoRejeicao String?
+
+  criadoEm DateTime @default(now())
+
+  @@index([status])
+  @@index([telefoneOrigem])
 }
