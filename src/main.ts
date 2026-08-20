@@ -16,6 +16,7 @@ async function bootstrap() {
     .setDescription('API de gestão de ponto, jornadas e apuração')
     .setVersion('1.0')
     .addBearerAuth()
+    .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'api-key')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
