@@ -1,0 +1,197 @@
+// ============================================================
+// SCHEMA — Sistema de Ponto
+// ============================================================
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ------------------------------------------------------------
+// AUTENTICAÇÃO
+// ------------------------------------------------------------
+enum Role {
+  ADMIN
+  RH
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  nome      String
+  senhaHash String
+  role      Role     @default(RH)
+  criadoEm  DateTime @default(now())
+}
+
+// ------------------------------------------------------------
+// TIPOS DE ESCALA SUPORTADOS
+// ------------------------------------------------------------
+enum TipoEscala {
+  PADRAO_5X2 // seg-sex, jornada fixa diária, sem sábado
+  COMPENSADO_SABADO // seg-sex, janela maior, intervalo compensa o sábado
+  ESCALA_12X36 // 12h trabalhadas, 36h de descanso, alternado
+  PERSONALIZADA // fallback pra casos futuros não previstos
+}
+
+enum TipoRegistro {
+  ENTRADA_1
+  SAIDA_1 // início do intervalo
+  ENTRADA_2 // volta do intervalo
+  SAIDA_2
+  // 12x36 costuma ter só ENTRADA_1 / SAIDA_1 (turno único de 12h),
+  // mas o enum comporta um intervalo dentro do turno se algum dia precisar.
+}
+
+// ------------------------------------------------------------
+// COLABORADOR
+// ------------------------------------------------------------
+model Colaborador {
+  id    String  @id @default(uuid())
+  nome  String
+  cpf   String  @unique
+  setor String
+  ativo Boolean @default(true)
+
+  jornadaId String
+  jornada   Jornada @relation(fields: [jornadaId], references: [id])
+
+  // usado só quando jornada.tipo == ESCALA_12X36:
+  // define se este colaborador trabalha em dias PAR ou ÍMPAR
+  // a partir da dataBaseEscala12x36
+  dataBaseEscala12x36 DateTime?
+
+  registros            RegistroPonto[]
+  ajustes              AjustePonto[]
+  apuracoes            ApuracaoDiaria[]
+  trocasComoOriginal   TrocaEscala[]    @relation("EscalaOriginal")
+  trocasComoSubstituto TrocaEscala[]    @relation("EscalaSubstituto")
+
+  criadoEm DateTime @default(now())
+}
+
+// ------------------------------------------------------------
+// JORNADA — configuração reutilizável, não fixa no colaborador
+// ------------------------------------------------------------
+model Jornada {
+  id   String     @id @default(uuid())
+  nome String // ex: "Administrativo Padrão", "Comercial Compensado Sábado"
+  tipo TipoEscala
+
+  // --- PADRAO_5X2 e COMPENSADO_SABADO ---
+  horaEntradaPadrao      String? // "08:00" — referência, não obrigatória p/ validação
+  horaSaidaPadrao        String? // "18:00"
+  duracaoIntervaloMin    Int? // 90 (1h30) — validado pela DURAÇÃO, não horário fixo
+  toleranciaIntervaloMin Int?    @default(10) // margem de tolerância na duração do intervalo
+  cargaDiariaEsperadaMin Int? // calculada: (saida-entrada) - intervalo, em minutos
+
+  // --- ESCALA_12X36 ---
+  cargaTurno12x36Min Int? // normalmente 720 (12h)
+
+  // --- ADICIONAL NOTURNO (aplicável a qualquer tipo de jornada) ---
+  temAdicionalNoturno        Boolean @default(false)
+  horarioNoturnoInicio       String  @default("22:00")
+  horarioNoturnoFim          String  @default("05:00")
+  percentualAdicionalNoturno Float   @default(0.20) // 20% CLT — confirmar CCT da categoria
+  horaNoturnaReduzida        Boolean @default(true) // CLT Art. 73: hora noturna = 52min30s
+
+  // aplica-se a ambos: minutos de tolerância p/ banco de horas antes de virar "atraso"/"hora extra"
+  toleranciaBancoHorasMin Int @default(10)
+
+  colaboradores Colaborador[]
+}
+
+// ------------------------------------------------------------
+// TROCA DE ESCALA — quando colaboradores trocam dia de trabalho
+// entre si (comum até em quem é do 5x2, não só 12x36)
+// ------------------------------------------------------------
+model TrocaEscala {
+  id String @id @default(uuid())
+
+  data DateTime // dia afetado
+
+  colaboradorOriginalId String
+  colaboradorOriginal   Colaborador @relation("EscalaOriginal", fields: [colaboradorOriginalId], references: [id])
+
+  colaboradorSubstitutoId String
+  colaboradorSubstituto   Colaborador @relation("EscalaSubstituto", fields: [colaboradorSubstitutoId], references: [id])
+
+  motivo              String?
+  supervisorInformado String // nome/id do supervisor que recebeu o aviso
+  registradoPor       String // quem lançou no sistema (RH, geralmente, no fechamento)
+
+  confirmadoPeloRH Boolean   @default(false) // true quando bate com o cartão físico no fechamento
+  confirmadoEm     DateTime?
+
+  criadoEm DateTime @default(now())
+
+  @@index([data, colaboradorOriginalId])
+  @@index([data, colaboradorSubstitutoId])
+}
+
+// ------------------------------------------------------------
+// REGISTRO DE PONTO — uma linha por batida (não por dia)
+// ------------------------------------------------------------
+model RegistroPonto {
+  id            String      @id @default(uuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  dataHora DateTime
+  tipo     TipoRegistro
+
+  origem String @default("CARTAO_MECANICO")
+  // valores possíveis: CARTAO_MECANICO (digitado do cartão físico), APP, WEB, IMPORTACAO_FOTO
+
+  criadoEm DateTime @default(now())
+
+  @@index([colaboradorId, dataHora])
+}
+
+// ------------------------------------------------------------
+// AJUSTE DE PONTO — toda correção manual fica rastreada aqui
+// (essencial pra auditoria / valor probatório)
+// ------------------------------------------------------------
+model AjustePonto {
+  id            String      @id @default(uuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  data               DateTime
+  motivo             String // ex: "Esqueceu de bater ponto", "Consulta médica"
+  registroOriginalId String?
+  valorAnterior      String?
+  valorNovo          String
+
+  ajustadoPor String // id/nome do admin RH que fez o ajuste
+  criadoEm    DateTime @default(now())
+}
+
+// ------------------------------------------------------------
+// APURAÇÃO DIÁRIA — resultado calculado pelo motor (1 linha por
+// colaborador/dia). É gerada automaticamente, não editada direto.
+// ------------------------------------------------------------
+model ApuracaoDiaria {
+  id            String      @id @default(uuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+  data          DateTime
+
+  diaEsperadoTrabalho       Boolean // considera Jornada + escala 12x36 + TrocaEscala do dia
+  totalTrabalhadoMin        Int? // soma de todos os intervalos entre batidas pareadas
+  totalNoturnoMin           Int? // minutos de relógio dentro da janela noturna
+  totalNoturnoEquivalenteMin Int? // já convertido pela hora reduzida, se aplicável
+  cargaEsperadaMin          Int // vem da Jornada (8h, 8h30, 12h...)
+  diferencaBancoHorasMin    Int? // totalTrabalhado - cargaEsperada (+ extra / - falta)
+
+  status  String // OK | ATRASO | HORA_EXTRA | FALTA | FOLGA | INCONSISTENTE
+  alertas String // JSON stringificado (array de strings) — SQLite não tem String[]
+
+  calculadoEm DateTime @default(now())
+
+  @@unique([colaboradorId, data])
+}
