@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Colaborador, StatusExtracao } from '@prisma/client';
+import { Colaborador, Prisma, StatusExtracao } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { parseDataISO } from '../apuracao/date-utils';
 import { CriarExtracaoPendenteDto } from './dto/criar-extracao-pendente.dto';
 import { ConfirmarExtracaoDto } from './dto/confirmar-extracao.dto';
 import { RejeitarExtracaoDto } from './dto/rejeitar-extracao.dto';
@@ -70,15 +71,25 @@ export class ExtracoesPendentesService {
       throw new BadRequestException('Extração sem colaborador vinculado — use vincular-colaborador antes de confirmar.');
     }
 
-    const [, atualizada] = await this.prisma.$transaction([
+    const colaboradorId = extracao.colaboradorId as string;
+    const observacoesUpserts = (dto.observacoes ?? []).map((observacao) =>
+      this.prisma.observacaoDia.upsert({
+        where: { colaboradorId_data: { colaboradorId, data: parseDataISO(observacao.data) } },
+        create: { colaboradorId, data: parseDataISO(observacao.data), texto: observacao.texto },
+        update: { texto: observacao.texto },
+      }),
+    );
+
+    const resultados = await this.prisma.$transaction([
       this.prisma.registroPonto.createMany({
         data: dto.registros.map((registro) => ({
-          colaboradorId: extracao.colaboradorId as string,
+          colaboradorId,
           dataHora: new Date(registro.dataHora),
           tipo: registro.tipo,
           origem: 'IMPORTACAO_FOTO',
         })),
       }),
+      ...observacoesUpserts,
       this.prisma.extracaoPendente.update({
         where: { id },
         data: {
@@ -87,9 +98,9 @@ export class ExtracoesPendentesService {
           revisadoEm: new Date(),
         },
       }),
-    ]);
+    ] as Prisma.PrismaPromise<unknown>[]);
 
-    return atualizada;
+    return resultados[resultados.length - 1];
   }
 
   async rejeitar(id: string, dto: RejeitarExtracaoDto, revisadoPor: string) {

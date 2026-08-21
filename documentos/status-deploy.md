@@ -68,9 +68,9 @@ Combinado com o usuário em 3 etapas. **Etapa 1 — pronta e testada
 (2026-08-21)**: scaffold + auth + Colaboradores + Jornadas +
 Lançamento de Ponto (aba manual) + Trocas de Escala. **Etapa 2 —
 pronta e testada (2026-08-21)**: Dashboard + Apuração/Relatório +
-export CSV. Etapa 3 (extração por foto + Fila do WhatsApp) é a
-próxima — a `ANTHROPIC_API_KEY` já foi adicionada ao `.env` local
-pelo usuário (não commitada, como o resto do `.env`).
+export CSV. **Etapa 3 — pronta e testada (2026-08-21)**: extração de
+foto (aba "Por foto") + Fila do WhatsApp. **Fase 3 está completa** —
+as 3 etapas combinadas com o usuário foram entregues.
 
 ### Etapa 2 — Dashboard + Apuração/Relatório
 
@@ -98,15 +98,60 @@ pelo usuário (não commitada, como o resto do `.env`).
   teste da Etapa 1) com o alerta certo. RH confirmado vendo as mesmas
   telas sem o botão de processar fechamento. Zero erros de console.
 
+### Etapa 3 — extração por foto + Fila do WhatsApp
+
+- **Model novo `ObservacaoDia`** (`colaboradorId` + `data` + `texto`,
+  unique nos dois primeiros) — decisão tomada com o usuário nesta
+  sessão para resolver o campo "observação" (pendente desde a Etapa
+  1: um dia pode ter observação sem nenhuma batida, por isso é
+  independente de `RegistroPonto`). Migration
+  `20260821144259_add_observacao_dia`. Novo módulo
+  `src/observacoes-dia/` (`POST /observacoes-dia`, upsert, ADMIN+RH).
+- **`POST /registros-ponto/extrair-foto`** (novo, multipart, ADMIN+RH):
+  usa `@anthropic-ai/sdk` (**nova dependência**) com o modelo
+  `claude-opus-5` para ler a foto do cartão e devolver JSON
+  estruturado (`nome`, `cpf`, `mesReferencia`, `dias: [...]`) — **não
+  grava nada no banco**, só retorna pro front revisar. Se
+  `ANTHROPIC_API_KEY` não estiver configurada, retorna 503 com
+  mensagem clara. `.env.example` criado na raiz (não existia).
+- **`ConfirmarExtracaoDto`** (Fila do WhatsApp) ganhou `observacoes?`
+  opcional, upsertadas na mesma transação que cria os `RegistroPonto`.
+- **Frontend**: componente compartilhado
+  `web/src/components/cartao-ponto/` (`DiaTableEditor` + conversores
+  dia→registros/observações) reusado tanto pela aba "Por foto" (nova,
+  em Lançamento de Ponto) quanto pela nova tela "Fila do WhatsApp"
+  (`/fila-whatsapp`, lista estilo inbox com miniatura da foto, badge
+  "Não identificado"/alerta de conferência, diálogo de revisão com
+  vincular colaborador quando `SEM_IDENTIFICACAO`).
+- ⚠️ **Risco de integração não totalmente verificável**: o parser do
+  JSON de `dadosExtraidos` da Fila do WhatsApp foi escrito para o
+  formato `{mesReferencia, dias: [{dia, entrada1, ...}]}`, mas o
+  schema exato que o workflow n8n realmente produz depende do prompt
+  configurado lá (fora deste repo) — testei só com dados sintéticos
+  no formato esperado. O parser é defensivo (mostra o JSON bruto em
+  vez de quebrar a tela se o formato vier diferente), mas vale
+  confirmar com uma extração real do WhatsApp assim que possível.
+- **Testado de ponta a ponta com chamada real da API Anthropic**
+  (custou uma fração de centavo): gerei um cartão de ponto sintético
+  (screenshot de HTML via Playwright) com nome/CPF/3 dias incluindo um
+  dia só com observação "Médico" sem nenhuma batida — a extração leu
+  tudo corretamente. Testado visualmente também: aba "Por foto"
+  completa (upload → extração → edição → confirmar → registros e
+  observação confirmados no banco) e Fila do WhatsApp completa (criar
+  pendência de teste via endpoint do n8n → abrir na fila → vincular
+  colaborador → confirmar → sumiu da fila). Zero erros de console.
+- Ferramentas de teste (Playwright/Chromium, ~650MB) instaladas e
+  removidas de novo ao final, como nas etapas anteriores.
+
 - **Stack**: React + TypeScript + Vite + shadcn/ui (versão nova,
   estilo `base-nova`, sobre Base UI em vez de Radix) + Tailwind v4 +
   TanStack Query + React Router + React Hook Form + Zod. Pacote
   separado em `web/` (não é npm workspace), com seu próprio
   `package.json`.
-- **Decisões tomadas com o usuário**: sem campo "observação" no
-  lançamento manual (backend não tem onde guardar — fica pendente pra
-  Etapa 3, que já vai precisar resolver isso pra extração por foto);
-  sem botão de excluir jornada na UI; lista de Trocas de Escala é
+- **Decisões tomadas com o usuário**: campo "observação" ficou fora do
+  lançamento manual nesta etapa (backend não tinha onde guardar —
+  resolvido na Etapa 3 com o model `ObservacaoDia`, ver abaixo); sem
+  botão de excluir jornada na UI; lista de Trocas de Escala é
   somente leitura (confirmação é definida na criação, sem
   `PATCH /trocas-escala/:id`).
 - **Testado visualmente** (Playwright headless, instalado e removido

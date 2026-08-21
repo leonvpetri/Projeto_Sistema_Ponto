@@ -70,6 +70,7 @@ model Colaborador {
   ajustes              AjustePonto[]
   apuracoes            ApuracaoDiaria[]
   extracoesPendentes   ExtracaoPendente[]
+  observacoesDia       ObservacaoDia[]
   trocasComoOriginal   TrocaEscala[]    @relation("EscalaOriginal")
   trocasComoSubstituto TrocaEscala[]    @relation("EscalaSubstituto")
 
@@ -152,6 +153,26 @@ model RegistroPonto {
   criadoEm DateTime @default(now())
 
   @@index([colaboradorId, dataHora])
+}
+
+// ------------------------------------------------------------
+// OBSERVAÇÃO DO DIA — nota livre associada a um dia do colaborador
+// (ex.: "Médico", "Compras Firma"), independente de RegistroPonto
+// porque um dia pode ter observação sem nenhuma batida (atestado o
+// dia inteiro, por exemplo). Vem do cartão de ponto (manual ou
+// extração por foto/WhatsApp).
+// ------------------------------------------------------------
+model ObservacaoDia {
+  id            String      @id @default(uuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  data  DateTime
+  texto String
+
+  criadoEm DateTime @default(now())
+
+  @@unique([colaboradorId, data])
 }
 
 // ------------------------------------------------------------

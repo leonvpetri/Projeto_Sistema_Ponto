@@ -8,6 +8,7 @@ import { RegistrosPontoModule } from './registros-ponto/registros-ponto.module';
 import { TrocasEscalaModule } from './trocas-escala/trocas-escala.module';
 import { ApuracaoModule } from './apuracao/apuracao.module';
 import { ExtracoesPendentesModule } from './extracoes-pendentes/extracoes-pendentes.module';
+import { ObservacoesDiaModule } from './observacoes-dia/observacoes-dia.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ExtracoesPendentesModule } from './extracoes-pendentes/extracoes-penden
     TrocasEscalaModule,
     ApuracaoModule,
     ExtracoesPendentesModule,
+    ObservacoesDiaModule,
   ],
 })
 export class AppModule {}

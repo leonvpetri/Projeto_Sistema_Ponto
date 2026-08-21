@@ -38,6 +38,24 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   })
 
+  return handleResponse<T>(response)
+}
+
+/** Envia um arquivo (multipart/form-data) — usado só pela extração por foto, o resto da API é JSON. */
+export async function apiFetchMultipart<T>(path: string, fieldName: string, file: File): Promise<T> {
+  const url = new URL(path, API_BASE_URL)
+  const token = getAccessToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const formData = new FormData()
+  formData.append(fieldName, file)
+
+  const response = await fetch(url, { method: 'POST', headers, body: formData })
+  return handleResponse<T>(response)
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 401) {
     clearAccessToken()
     window.location.assign('/login')

@@ -1,4 +1,5 @@
 import { LancamentoManualForm } from '../components/lancamento-manual-form'
+import { LancamentoFotoForm } from '../components/lancamento-foto-form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export function LancamentoPontoPage() {
@@ -8,12 +9,13 @@ export function LancamentoPontoPage() {
       <Tabs defaultValue="manual">
         <TabsList>
           <TabsTrigger value="manual">Manual</TabsTrigger>
-          <TabsTrigger value="foto" disabled>
-            Por foto (em breve)
-          </TabsTrigger>
+          <TabsTrigger value="foto">Por foto</TabsTrigger>
         </TabsList>
         <TabsContent value="manual" className="pt-4">
           <LancamentoManualForm />
+        </TabsContent>
+        <TabsContent value="foto" className="pt-4">
+          <LancamentoFotoForm />
         </TabsContent>
       </Tabs>
     </div>

@@ -84,6 +84,7 @@ describe('Fila do WhatsApp — revisão do RH (e2e)', () => {
           { dataHora: '2026-08-20T11:00:00Z', tipo: 'ENTRADA_1' },
           { dataHora: '2026-08-20T20:00:00Z', tipo: 'SAIDA_2' },
         ],
+        observacoes: [{ data: '2026-08-20', texto: 'Consulta médica' }],
       });
     expect(confirmarRes.status).toBe(201);
     expect(confirmarRes.body.status).toBe('CONFIRMADA');
@@ -98,6 +99,10 @@ describe('Fila do WhatsApp — revisão do RH (e2e)', () => {
     const prisma = app.get(PrismaService);
     const criados = await prisma.registroPonto.findMany({ where: { colaboradorId, origem: 'IMPORTACAO_FOTO' } });
     expect(criados).toHaveLength(2);
+
+    const observacoes = await prisma.observacaoDia.findMany({ where: { colaboradorId } });
+    expect(observacoes).toHaveLength(1);
+    expect(observacoes[0].texto).toBe('Consulta médica');
 
     // não pode revisar de novo
     const rejeitarDeNovo = await request(app.getHttpServer())
@@ -200,5 +205,36 @@ describe('Fila do WhatsApp — revisão do RH (e2e)', () => {
       .get('/extracoes-pendentes')
       .set('Authorization', `Bearer ${tokenRh}`);
     expect(listaRes.status).toBe(200);
+  });
+
+  it('cria e atualiza (upsert) uma observação de dia', async () => {
+    const criarRes = await request(app.getHttpServer())
+      .post('/observacoes-dia')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ colaboradorId, data: '2026-08-25', texto: 'Compras Firma' });
+    expect(criarRes.status).toBe(201);
+    expect(criarRes.body.texto).toBe('Compras Firma');
+
+    const atualizarRes = await request(app.getHttpServer())
+      .post('/observacoes-dia')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ colaboradorId, data: '2026-08-25', texto: 'Compras Firma — corrigido' });
+    expect(atualizarRes.status).toBe(201);
+    expect(atualizarRes.body.texto).toBe('Compras Firma — corrigido');
+    expect(atualizarRes.body.id).toBe(criarRes.body.id);
+
+    const prisma = app.get(PrismaService);
+    const total = await prisma.observacaoDia.count({ where: { colaboradorId, data: new Date(2026, 7, 25) } });
+    expect(total).toBe(1);
+  });
+
+  it('extrair-foto exige autenticação e role corretos', async () => {
+    const semToken = await request(app.getHttpServer()).post('/registros-ponto/extrair-foto');
+    expect(semToken.status).toBe(401);
+
+    const semArquivo = await request(app.getHttpServer())
+      .post('/registros-ponto/extrair-foto')
+      .set('Authorization', `Bearer ${token}`);
+    expect(semArquivo.status).toBe(400);
   });
 });

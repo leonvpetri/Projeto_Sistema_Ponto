@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createRegistroPonto, listRegistrosPontoDoDia, listRegistrosPontoDoMes } from './api'
+import { createRegistroPonto, extrairFoto, listRegistrosPontoDoDia, listRegistrosPontoDoMes } from './api'
 import type { CreateRegistroPontoInput } from './types'
 
 export function registrosPontoDoDiaKey(colaboradorId: string, data: string) {
@@ -35,4 +35,8 @@ export function useCreateRegistroPonto() {
       queryClient.invalidateQueries({ queryKey: registrosPontoDoDiaKey(variables.colaboradorId, data) })
     },
   })
+}
+
+export function useExtrairFoto() {
+  return useMutation({ mutationFn: (foto: File) => extrairFoto(foto) })
 }
