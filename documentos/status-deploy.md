@@ -225,9 +225,9 @@ container Docker de produção):**
   configurado com `BACKEND_URL` e a credencial `x-api-key`
   (`N8N_WEBHOOK_SECRET`) — só validamos a conectividade de rede
   (`docker exec` → `wget`), não uma chamada real feita pelo workflow.
-- **Git**: 4 commits locais (`f864263`, `52f7a7e`, `1d0b5c1`, `7bec5dc`)
-  à frente de `origin/main` — ainda **não foram enviados** (`git push`)
-  pro GitHub.
+- **Git**: 7 commits locais (`f864263`, `52f7a7e`, `1d0b5c1`, `7bec5dc`,
+  `0c580e2`, `5c08640`, `09a23e1`) à frente de `origin/main` — ainda
+  **não foram enviados** (`git push`) pro GitHub.
 - **Testes e2e**: resolvido — `.env.test` criado (gitignorado, secrets
   fake só para teste) e bug de cleanup do `test/setup-e2e.ts` corrigido.
   Rodar com `npm run test:e2e`.
