@@ -1,4 +1,4 @@
-# Status do deploy — 2026-08-20
+# Status do deploy — 2026-08-21
 
 Snapshot de fim de sessão, pra retomar amanhã sem precisar reinvestigar tudo
 de novo. Isto é um doc de status (estado muda), não uma spec — as specs
@@ -8,32 +8,55 @@ nesta mesma pasta.
 ## O que está no ar
 
 - **Container**: `ponto-backend`, rodando a imagem `ponto-backend:latest`
-  (buildada localmente nesta VPS a partir do `Dockerfile` na raiz).
+  (buildada localmente nesta VPS a partir do `Dockerfile` na raiz,
+  **rebuildada em 2026-08-21** com o código completo da Fase 3).
 - **Rede Docker**: `easypanel-artefinal` (mesma rede overlay do n8n,
-  `artefinal_n8n`) — sem porta publicada no host, só alcançável por nome de
-  container dentro da rede. URL interna: `http://ponto-backend:3000`.
+  `artefinal_n8n`). URL interna: `http://ponto-backend:3000`.
+  **Temporariamente** também publicada em `127.0.0.1:3002` (host) para
+  testes do front-end via túnel SSH — remover essa publicação (recriar
+  sem `-p`) quando os testes acabarem.
 - **Restart policy**: `unless-stopped`.
 - **Banco**: SQLite em `/home/claude/ponto-backend-data/prod.db` (bind
   mount do host para `/app/data/prod.db` no container) — sobrevive a
-  rebuild/restart do container. 2 migrations aplicadas: `20260819180120_init`
-  e `20260820190644_add_extracao_pendente`.
+  rebuild/restart do container. 3 migrations aplicadas: `20260819180120_init`,
+  `20260820190644_add_extracao_pendente` e
+  `20260821144259_add_observacao_dia` (aplicada em 2026-08-21 contra o
+  banco real, após backup em
+  `/home/claude/ponto-backend-data/prod.db.bak-20260821-pre-observacao-dia`).
+  Dados confirmados intactos depois do redeploy: 2 `ExtracaoPendente` de
+  teste, 0 usuários, 0 colaboradores.
 - Testado ponta a ponta: `GET /docs` acessível de dentro do container do
-  n8n via `docker exec <n8n> wget http://ponto-backend:3000/docs`.
+  n8n via `docker exec <n8n> wget http://ponto-backend:3000/docs`
+  (retorna 200) e localmente via `curl 127.0.0.1:3002/docs`.
 
 ## Secrets
 
-Variáveis `JWT_SECRET` e `N8N_WEBHOOK_SECRET` foram geradas com
-`openssl rand -hex 32` e passadas como `-e` no `docker run` — **não estão
-em nenhum arquivo no repositório nem em texto plano na VPS fora do
-ambiente do container** (ficaram só no output do chat e num arquivo
-temporário no scratchpad da sessão, que não persiste).
+**Rotacionados em 2026-08-21** durante o redeploy (incidente, não
+planejado — ver detalhes abaixo). `JWT_SECRET` e `N8N_WEBHOOK_SECRET`
+atuais são novos, gerados com `openssl rand -hex 32`, passados como `-e`
+no `docker run` — **não estão em nenhum arquivo no repositório nem em
+texto plano na VPS fora do ambiente do container**.
 
-Se ainda não guardou os dois valores em um gerenciador de senhas (fora da
-VPS), pegue o histórico da conversa de 2026-08-20 antes que essa sessão
-expire. Se perder os valores, não tem problema grave: dá pra gerar novos
-(`openssl rand -hex 32`) e recriar o container — só precisa atualizar a
-credencial correspondente no n8n depois (`N8N_WEBHOOK_SECRET`), já que
-qualquer JWT emitido com o `JWT_SECRET` antigo also invalida.
+Se ainda não guardou os dois valores atuais em um gerenciador de senhas,
+pegue o histórico desta conversa (2026-08-21) antes que a sessão expire.
+**Pendência real**: o `N8N_WEBHOOK_SECRET` novo ainda **não foi
+atualizado na credencial do n8n** (workflow `iuZvpxLHZgkKcH6a`) — fazer
+isso antes de reativar aquele workflow, senão as chamadas pro backend
+vão dar 401.
+
+**O que causou a rotação**: ao tentar publicar a porta 3000 do host
+(`-p 3000:3000`) pra permitir teste do front-end via túnel, o comando
+bateu em "port already allocated" (3000 é do Easypanel, ver
+`prompt-deploy-vps-claude-code.md`/memória de infra) — mas isso
+aconteceu *depois* do container antigo já ter sido parado/removido no
+mesmo script, e o container de substituição (que falhou ao iniciar,
+ficou em estado `Created`) foi removido na limpeza antes de eu inspecionar
+o env dele. Como os secrets só existiam no ambiente daquele container
+(nunca em arquivo), foram perdidos. Impacto real foi baixo: 0 usuários
+cadastrados (sem sessão pra invalidar) e o workflow do n8n já estava
+inativo (sem tráfego real dependendo do webhook secret). Porta correta
+usada depois: **3002** (3000 e 3001 já estavam ocupados nesta VPS — ver
+`vps-shared-infra` na memória do projeto).
 
 ## Pipeline de extração via WhatsApp (`prompt-whatsapp-claude-code.md`)
 
@@ -241,10 +264,13 @@ container Docker de produção):**
   header de API key — mas está **`active: false`**, ou seja, não está
   recebendo mensagens reais do WhatsApp ainda. Precisa ser ativado (e
   o `BACKEND_URL`/credencial conferidos de verdade) antes do pipeline
-  funcionar ponta a ponta em produção.
-- **Git**: 7 commits locais (`f864263`, `52f7a7e`, `1d0b5c1`, `7bec5dc`,
-  `0c580e2`, `5c08640`, `09a23e1`) à frente de `origin/main` — ainda
-  **não foram enviados** (`git push`) pro GitHub.
+  funcionar ponta a ponta em produção. **Além disso**: a credencial de
+  API key desse node ainda usa o `N8N_WEBHOOK_SECRET` **antigo** — foi
+  rotacionado no backend em 2026-08-21 (ver seção "Secrets" acima) e
+  ainda não foi atualizada no n8n. Atualizar antes de ativar o workflow.
+- **Git**: todos os commits foram enviados pro GitHub (`git push`),
+  último push em 2026-08-21 (`0d6e958`, `main` sincronizado com
+  `origin/main`).
 - **Testes e2e**: resolvido — `.env.test` criado (gitignorado, secrets
   fake só para teste) e bug de cleanup do `test/setup-e2e.ts` corrigido.
   Rodar com `npm run test:e2e`.
