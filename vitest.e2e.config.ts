@@ -10,5 +10,8 @@ export default defineConfig({
     setupFiles: ['test/setup-e2e.ts'],
     hookTimeout: 30000,
     testTimeout: 30000,
+    // Os arquivos e2e compartilham o mesmo prisma/test.db (unlink+push no
+    // setup de cada arquivo) — rodar em paralelo causa corrida entre eles.
+    fileParallelism: false,
   },
 });

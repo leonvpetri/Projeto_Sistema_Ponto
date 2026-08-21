@@ -12,22 +12,24 @@ import { PendenciasApuracaoDto } from './dto/pendencias-apuracao.dto';
 @ApiTags('apuracao')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN)
 @Controller('admin/apuracao')
 export class ApuracaoController {
   constructor(private apuracaoService: ApuracaoService) {}
 
   @Post('processar')
+  @Roles(Role.ADMIN)
   processar(@Query() dto: ProcessarApuracaoDto) {
     return this.apuracaoService.processarMes(dto.mes);
   }
 
   @Get()
+  @Roles(Role.ADMIN, Role.RH)
   buscar(@Query() dto: ConsultarApuracaoDto) {
     return this.apuracaoService.buscarApuracao(dto.colaboradorId, dto.mes);
   }
 
   @Get('pendencias')
+  @Roles(Role.ADMIN, Role.RH)
   pendencias(@Query() dto: PendenciasApuracaoDto) {
     return this.apuracaoService.buscarPendencias(dto.mes);
   }

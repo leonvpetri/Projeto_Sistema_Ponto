@@ -1,82 +1,107 @@
 # Contexto
 
-Esta é a Fase 3 do sistema (backend e front-end web já existem). Agora um
-colaborador pode fotografar o próprio cartão de ponto mecânico e mandar
-via WhatsApp; um workflow n8n (arquivo `workflow-ponto-whatsapp.json`,
-nesta mesma pasta) recebe a foto, chama a API da Anthropic (Claude, visão)
-para extrair os dados, e envia o resultado para o backend. **O RH sempre
-revisa e confirma antes de qualquer dado virar registro oficial** — nada é
-gravado automaticamente em `RegistroPonto`.
+Esta é a Fase 3 do sistema (backend já implementado e testado; front-end
+web ainda não). Um colaborador fotografa o próprio cartão de ponto
+mecânico e manda via WhatsApp; um workflow n8n (arquivo
+`workflow-ponto-whatsapp.json`, nesta mesma pasta) recebe a foto, chama a
+API da Anthropic (Claude, visão) para extrair os dados, e envia o
+resultado para o backend. **O RH sempre revisa e confirma antes de
+qualquer dado virar registro oficial** — nada é gravado automaticamente em
+`RegistroPonto`.
 
-O schema já tem os models necessários (`schema.prisma` atualizado, nesta
-pasta): `Colaborador.telefone` (para identificar quem mandou a foto) e
-`ExtracaoPendente` (fila de revisão).
+**Status: os endpoints de backend (seções 1 e 2) já estão implementados e
+testados (12/12 testes passando) — o que falta é só a tela de front-end
+(seção 3).** As seções 1 e 2 abaixo foram atualizadas para descrever o
+contrato real implementado (que difere um pouco do que foi originalmente
+especificado), para servir de referência exata ao construir a tela.
 
-# 1. Endpoint que recebe do n8n
+# 1. Endpoint que recebe do n8n — IMPLEMENTADO
 
-`POST /extracoes-pendentes` (autenticado por API key simples, não JWT de
-usuário — quem chama é o workflow n8n, não um usuário logado; usar um
-header tipo `x-api-key` validado contra uma variável de ambiente
-`N8N_WEBHOOK_SECRET`).
+`POST /extracoes-pendentes`, autenticado por API key (header `x-api-key`
+validado contra `N8N_WEBHOOK_SECRET`) — já em produção, testado ponta a
+ponta com o workflow n8n real.
 
-Corpo esperado (é o que o workflow n8n envia):
+Corpo recebido do n8n:
 ```json
 {
-  "telefoneOrigem": "5534999999999",
+  "telefoneOrigem": "553492516070",
   "fotoUrl": "https://...",
   "nomeExtraidoCartao": "Márcia Ferreira da Cunha",
   "cpfExtraidoCartao": "042.329.836-43",
   "dadosExtraidosJson": "{...json com os dias extraídos...}"
 }
 ```
+Lógica (implementada): busca `Colaborador` por `telefone`; se não achar,
+cria com `status: SEM_IDENTIFICACAO`; se achar, compara nome/CPF
+(normalizado) e marca `conferenciaOk`, sempre associando o
+`colaboradorId`; salva com `status: PENDENTE`.
 
-Lógica do endpoint:
-1. Buscar `Colaborador` cujo `telefone` bata com `telefoneOrigem`.
-2. Se não encontrar: criar a `ExtracaoPendente` com
-   `status: SEM_IDENTIFICACAO`, `colaboradorId: null`.
-3. Se encontrar: comparar `nomeExtraidoCartao`/`cpfExtraidoCartao` com os
-   dados do colaborador encontrado. Se baterem (ou forem muito parecidos —
-   considerar comparação simples ignorando maiúsculas/acentos/espaços),
-   marcar `conferenciaOk: true`. Se não baterem, marcar `conferenciaOk:
-   false` mas ainda associar o `colaboradorId` (o telefone identificou
-   alguém, mas o cartão da foto parece ser de outra pessoa — isso é uma
-   pendência importante para o RH olhar com atenção, não um erro fatal).
-4. Salvar com `status: PENDENTE` (exceto o caso 2 acima).
-5. Retornar 201 com o id criado.
+# 2. Endpoints para o RH revisar a fila — IMPLEMENTADOS
 
-# 2. Endpoints para o RH revisar a fila
+Todos protegidos por JWT + role (ADMIN/RH).
 
-- `GET /extracoes-pendentes?status=PENDENTE` — lista a fila, incluindo
-  dados do colaborador (se identificado), a foto, e o JSON extraído já
-  parseado para exibição.
-- `POST /extracoes-pendentes/:id/confirmar` — body permite o RH corrigir
-  qualquer campo antes de confirmar (mesma lógica de edição da tela de
-  upload manual já existente). Ao confirmar: cria os `RegistroPonto`
-  correspondentes (reaproveitar o service/lógica já usada no lançamento
-  manual), marca a `ExtracaoPendente` como `CONFIRMADA`, grava
-  `revisadoPor` e `revisadoEm`.
-- `POST /extracoes-pendentes/:id/rejeitar` — body com `motivoRejeicao`
-  (ex.: "Foto ilegível", "Pessoa errada"). Marca como `REJEITADA`, não
-  cria nenhum `RegistroPonto`.
-- `POST /extracoes-pendentes/:id/vincular-colaborador` — usado apenas
-  para os casos `SEM_IDENTIFICACAO`: o RH escolhe manualmente a qual
-  colaborador aquela extração pertence (ex.: colaborador mandou de um
-  número novo, ainda não cadastrado).
+- **`GET /extracoes-pendentes?status=`** — lista a fila (status opcional:
+  `PENDENTE`, `CONFIRMADA`, `REJEITADA`, `SEM_IDENTIFICACAO`), com o
+  `colaborador` incluído (quando houver) e `dadosExtraidosJson` já
+  parseado para exibição direta.
 
-# 3. Tela no front-end: "Fila do WhatsApp"
+- **`POST /extracoes-pendentes/:id/confirmar`** — ⚠️ **contrato diferente
+  do que o front-end vai exibir na tela**, importante ler com atenção:
+
+  ```json
+  {
+    "registros": [
+      { "dataHora": "2026-08-03T07:58:00", "tipo": "ENTRADA_1" },
+      { "dataHora": "2026-08-03T11:43:00", "tipo": "SAIDA_1" },
+      { "dataHora": "2026-08-03T13:20:00", "tipo": "ENTRADA_2" },
+      { "dataHora": "2026-08-03T17:09:00", "tipo": "SAIDA_2" }
+    ]
+  }
+  ```
+  Ou seja: **um item por batida** (mesmo formato de `POST
+  /registros-ponto`, reaproveitando a mesma lógica de criação), não um
+  item por dia com 4 campos de horário. A tela do RH vai exibir/editar por
+  **dia** (mais natural de ler um cartão de ponto), então o **front-end é
+  responsável por converter** a tabela editada (dias → 4 horários cada)
+  para esse array de batidas antes de enviar — dias/horários que
+  estiverem `null` na tabela simplesmente não geram entrada no array.
+  Cria os `RegistroPonto` numa transação atômica, marca a
+  `ExtracaoPendente` como `CONFIRMADA`, grava `revisadoPor`/`revisadoEm`.
+  Retorna 409 se a extração já foi revisada (`CONFIRMADA`/`REJEITADA`), e
+  400 se tentar confirmar sem colaborador vinculado.
+
+- **`POST /extracoes-pendentes/:id/rejeitar`** — body
+  `{ "motivoRejeicao": "..." }`. Marca `REJEITADA`, não cria nenhum
+  `RegistroPonto`.
+
+- **`POST /extracoes-pendentes/:id/vincular-colaborador`** — só para
+  `SEM_IDENTIFICACAO`; recebe o `colaboradorId` escolhido pelo RH,
+  recalcula `conferenciaOk` comparando com nome/CPF já extraídos, e move
+  o registro para `PENDENTE` (aí sim pode ser confirmado).
+
+# 3. Tela no front-end: "Fila do WhatsApp" — A IMPLEMENTAR
 
 Nova tela (menu lateral), estilo caixa de entrada:
 
-- Lista de pendências, com foto em miniatura, nome do colaborador (ou
-  "Não identificado" em destaque se `SEM_IDENTIFICACAO`), e um badge de
-  alerta se `conferenciaOk === false` (telefone e cartão não batem — isso
-  precisa ficar visualmente óbvio, é o caso que mais precisa de atenção
-  humana).
-- Ao clicar numa pendência: abre a mesma tabela editável já usada na tela
-  de "Lançamento por foto" (dias extraídos, editável), mais um botão
-  "Confirmar e lançar" e outro "Rejeitar" (com campo de motivo).
+- Lista de pendências (`GET /extracoes-pendentes?status=PENDENTE`), com
+  foto em miniatura, nome do colaborador (ou "Não identificado" em
+  destaque se `SEM_IDENTIFICACAO`), e um badge de alerta se
+  `conferenciaOk === false` (telefone e cartão não batem — precisa ficar
+  visualmente óbvio, é o caso que mais precisa de atenção humana).
+- Ao clicar numa pendência: abre uma **tabela editável por dia** (dia,
+  entrada1, saída1, entrada2, saída2, observação) a partir do
+  `dadosExtraidosJson` — mesmo componente/padrão da tela de "Lançamento
+  por foto" manual (reaproveitar se possível).
+- **Antes de chamar `confirmar`**: converter a tabela por dia para o array
+  `registros: [{dataHora, tipo}]` descrito na seção 2 — combinar cada
+  `data` extraída com o horário de cada campo preenchido, mapeando
+  `entrada1→ENTRADA_1`, `saida1→SAIDA_1`, `entrada2→ENTRADA_2`,
+  `saida2→SAIDA_2`; campos `null` na tabela não entram no array.
+- Botões "Confirmar e lançar" (chama `confirmar` com o array convertido) e
+  "Rejeitar" (abre campo de motivo, chama `rejeitar`).
 - Para os casos `SEM_IDENTIFICACAO`: mostrar um seletor de colaborador
-  para o RH vincular manualmente antes de poder confirmar.
+  para o RH vincular manualmente (`vincular-colaborador`) antes de
+  liberar o botão de confirmar.
 
 # 4. Não fazer nesta fase
 
@@ -89,10 +114,13 @@ Nova tela (menu lateral), estilo caixa de entrada:
   na fila e o RH decide (é raro e mais simples resolver manualmente por
   enquanto do que criar lógica de deduplicação).
 
-# 5. Dúvidas conhecidas em aberto (perguntar, não assumir)
-- O campo exato do payload da Zernio para a URL/mídia da foto ainda
-  precisa ser confirmado com um teste real (está marcado como TODO no
-  próprio workflow n8n). Isso não afeta o backend/front-end diretamente
-  (ele só recebe o resultado já processado), mas se pedir para você testar
-  ponta a ponta, avise que essa parte do n8n pode precisar de ajuste antes
-  de funcionar de verdade.
+# 5. Observações finais
+
+- O role usado nos endpoints protegidos ficou `ADMIN/RH` (decisão já
+  tomada pelo Claude Code na implementação) — se o projeto usa só `ADMIN`
+  em outras telas, confirme qual role o usuário logado do RH realmente
+  tem antes de montar as chamadas autenticadas desta tela.
+- O campo da mídia no payload da Zernio já foi confirmado com um teste
+  real (`message.attachments[0].url`, `message.sender.id` para o
+  telefone) — o workflow n8n já está ajustado e validado ponta a ponta,
+  não há mais nada pendente de confirmação nesse lado.
