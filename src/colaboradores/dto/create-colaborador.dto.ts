@@ -14,6 +14,11 @@ export class CreateColaboradorDto {
   @IsString()
   setor: string;
 
+  @ApiProperty({ required: false, example: '5534999999999', description: 'WhatsApp (E.164), usado para identificar quem manda foto do cartão de ponto' })
+  @IsOptional()
+  @IsString()
+  telefone?: string;
+
   @ApiProperty()
   @IsString()
   jornadaId: string;

@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Colaborador, StatusExtracao } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CriarExtracaoPendenteDto } from './dto/criar-extracao-pendente.dto';
+import { ConfirmarExtracaoDto } from './dto/confirmar-extracao.dto';
+import { RejeitarExtracaoDto } from './dto/rejeitar-extracao.dto';
+import { VincularColaboradorDto } from './dto/vincular-colaborador.dto';
 
 @Injectable()
 export class ExtracoesPendentesService {
@@ -41,6 +44,96 @@ export class ExtracoesPendentesService {
         status: StatusExtracao.PENDENTE,
       },
     });
+  }
+
+  async listar(status?: StatusExtracao) {
+    const extracoes = await this.prisma.extracaoPendente.findMany({
+      where: status ? { status } : undefined,
+      include: { colaborador: true },
+      orderBy: { criadoEm: 'asc' },
+    });
+
+    return extracoes.map((extracao) => ({
+      ...extracao,
+      dadosExtraidos: JSON.parse(extracao.dadosExtraidosJson),
+    }));
+  }
+
+  /**
+   * Cria os RegistroPonto (mesma lógica do lançamento manual — origem
+   * IMPORTACAO_FOTO) e marca a extração como CONFIRMADA. As batidas vêm do
+   * corpo da requisição porque o RH pode ter corrigido o que a IA leu.
+   */
+  async confirmar(id: string, dto: ConfirmarExtracaoDto, revisadoPor: string) {
+    const extracao = await this.buscarRevisavel(id);
+    if (!extracao.colaboradorId) {
+      throw new BadRequestException('Extração sem colaborador vinculado — use vincular-colaborador antes de confirmar.');
+    }
+
+    const [, atualizada] = await this.prisma.$transaction([
+      this.prisma.registroPonto.createMany({
+        data: dto.registros.map((registro) => ({
+          colaboradorId: extracao.colaboradorId as string,
+          dataHora: new Date(registro.dataHora),
+          tipo: registro.tipo,
+          origem: 'IMPORTACAO_FOTO',
+        })),
+      }),
+      this.prisma.extracaoPendente.update({
+        where: { id },
+        data: {
+          status: StatusExtracao.CONFIRMADA,
+          revisadoPor,
+          revisadoEm: new Date(),
+        },
+      }),
+    ]);
+
+    return atualizada;
+  }
+
+  async rejeitar(id: string, dto: RejeitarExtracaoDto, revisadoPor: string) {
+    await this.buscarRevisavel(id);
+
+    return this.prisma.extracaoPendente.update({
+      where: { id },
+      data: {
+        status: StatusExtracao.REJEITADA,
+        motivoRejeicao: dto.motivoRejeicao,
+        revisadoPor,
+        revisadoEm: new Date(),
+      },
+    });
+  }
+
+  async vincularColaborador(id: string, dto: VincularColaboradorDto) {
+    const extracao = await this.prisma.extracaoPendente.findUnique({ where: { id } });
+    if (!extracao) throw new NotFoundException('Extração não encontrada.');
+    if (extracao.status !== StatusExtracao.SEM_IDENTIFICACAO) {
+      throw new ConflictException('Só é possível vincular colaborador em extrações SEM_IDENTIFICACAO.');
+    }
+
+    const colaborador = await this.prisma.colaborador.findUnique({ where: { id: dto.colaboradorId } });
+    if (!colaborador) throw new NotFoundException('Colaborador não encontrado.');
+
+    return this.prisma.extracaoPendente.update({
+      where: { id },
+      data: {
+        colaboradorId: colaborador.id,
+        conferenciaOk: conferenciaBate(colaborador, extracao.nomeExtraidoCartao ?? undefined, extracao.cpfExtraidoCartao ?? undefined),
+        status: StatusExtracao.PENDENTE,
+      },
+    });
+  }
+
+  /** Busca uma extração garantindo que ainda não foi revisada (confirmar/rejeitar são ações finais). */
+  private async buscarRevisavel(id: string) {
+    const extracao = await this.prisma.extracaoPendente.findUnique({ where: { id } });
+    if (!extracao) throw new NotFoundException('Extração não encontrada.');
+    if (extracao.status === StatusExtracao.CONFIRMADA || extracao.status === StatusExtracao.REJEITADA) {
+      throw new ConflictException(`Extração já foi revisada (status atual: ${extracao.status}).`);
+    }
+    return extracao;
   }
 }
 
