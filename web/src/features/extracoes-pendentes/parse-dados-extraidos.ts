@@ -1,17 +1,20 @@
 import { diaNumeroParaISO, type DiaExtraido } from '@/components/cartao-ponto/converters'
 
 /**
- * O JSON de `dadosExtraidos` vem do prompt configurado no workflow n8n, que
- * este repo não controla — por isso o parse é defensivo: qualquer formato
- * inesperado vira `null` em vez de quebrar a tela, e a tela mostra o JSON
- * bruto como alternativa.
+ * O JSON de `dadosExtraidos` vem do prompt configurado no workflow n8n
+ * ("Ponto - Extração de Cartão via WhatsApp (Zernio)", nó "Extrair dados via
+ * Claude (visão)") — conferido direto na instância n8n desta VPS em
+ * 2026-08-21. O nó manda `mesReferencia` como "MM/AAAA" (ex.: "08/2026"),
+ * não ISO "YYYY-MM" — por isso a normalização abaixo. O resto do schema
+ * (`dias: [{dia: number, entrada1, saida1, entrada2, saida2, observacao}]`)
+ * bate com o que este parser já esperava.
  */
 export function parseDadosExtraidos(dadosExtraidos: unknown): DiaExtraido[] | null {
   if (!dadosExtraidos || typeof dadosExtraidos !== 'object') return null
   const obj = dadosExtraidos as Record<string, unknown>
   if (!Array.isArray(obj.dias)) return null
 
-  const mesReferencia = typeof obj.mesReferencia === 'string' ? obj.mesReferencia : null
+  const mesReferencia = normalizarMesReferencia(obj.mesReferencia)
 
   try {
     return obj.dias.map((diaBruto): DiaExtraido => {
@@ -29,4 +32,14 @@ export function parseDadosExtraidos(dadosExtraidos: unknown): DiaExtraido[] | nu
   } catch {
     return null
   }
+}
+
+/** Aceita "MM/AAAA" (formato real do n8n) ou "YYYY-MM" (ISO, caso o prompt do n8n mude no futuro). */
+function normalizarMesReferencia(valor: unknown): string | null {
+  if (typeof valor !== 'string') return null
+  const iso = valor.match(/^(\d{4})-(\d{2})$/)
+  if (iso) return valor
+  const br = valor.match(/^(\d{1,2})\/(\d{4})$/)
+  if (br) return `${br[2]}-${br[1].padStart(2, '0')}`
+  return null
 }

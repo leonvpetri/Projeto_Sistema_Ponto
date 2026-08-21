@@ -123,14 +123,27 @@ as 3 etapas combinadas com o usuário foram entregues.
   (`/fila-whatsapp`, lista estilo inbox com miniatura da foto, badge
   "Não identificado"/alerta de conferência, diálogo de revisão com
   vincular colaborador quando `SEM_IDENTIFICACAO`).
-- ⚠️ **Risco de integração não totalmente verificável**: o parser do
-  JSON de `dadosExtraidos` da Fila do WhatsApp foi escrito para o
-  formato `{mesReferencia, dias: [{dia, entrada1, ...}]}`, mas o
-  schema exato que o workflow n8n realmente produz depende do prompt
-  configurado lá (fora deste repo) — testei só com dados sintéticos
-  no formato esperado. O parser é defensivo (mostra o JSON bruto em
-  vez de quebrar a tela se o formato vier diferente), mas vale
-  confirmar com uma extração real do WhatsApp assim que possível.
+- ✅ **Risco de integração com o n8n — verificado e corrigido
+  (2026-08-21)**: exportei (leitura, `n8n export:workflow`) o
+  workflow real `iuZvpxLHZgkKcH6a` ("Ponto - Extração de Cartão via
+  WhatsApp (Zernio)") direto da instância n8n desta VPS pra comparar
+  o prompt real do nó "Extrair dados via Claude (visão)" com o que o
+  parser do front-end esperava. Achei uma divergência real: o n8n
+  manda `mesReferencia` como `"MM/AAAA"` (ex.: `"08/2026"`), não ISO
+  `"YYYY-MM"` como o parser assumia — isso geraria datas quebradas
+  tipo `"08/2026-21"` em vez de `"2026-08-21"` pra cada dia extraído.
+  **Corrigido** em
+  `web/src/features/extracoes-pendentes/parse-dados-extraidos.ts`
+  (`normalizarMesReferencia`, aceita os dois formatos). O resto do
+  schema (`nomeColaborador`, `cpf`, `dias: [{dia: number, entrada1,
+  saida1, entrada2, saida2, observacao}]`) já batia com o esperado.
+  Revalidei rodando o parser corrigido contra um payload no formato
+  real (via `POST /extracoes-pendentes` de teste) — datas corretas.
+  ⚠️ Nota à parte: o workflow está `active: false` no n8n no momento
+  desta verificação — não está recebendo mensagens reais do WhatsApp
+  ainda, só foi possível confirmar o schema porque o workflow existe
+  configurado, não porque rodou de verdade ponta a ponta com uma foto
+  real do WhatsApp.
 - **Testado de ponta a ponta com chamada real da API Anthropic**
   (custou uma fração de centavo): gerei um cartão de ponto sintético
   (screenshot de HTML via Playwright) com nome/CPF/3 dias incluindo um
@@ -221,10 +234,14 @@ container Docker de produção):**
 - **Nenhum usuário cadastrado** na tabela `User` do banco de produção
   (`users: 0`) — os endpoints `@Roles('ADMIN')` não são utilizáveis até
   criar um usuário via `POST /auth/register` (ou seed).
-- **n8n**: não foi confirmado nesta sessão se o workflow no n8n já foi
-  configurado com `BACKEND_URL` e a credencial `x-api-key`
-  (`N8N_WEBHOOK_SECRET`) — só validamos a conectividade de rede
-  (`docker exec` → `wget`), não uma chamada real feita pelo workflow.
+- **n8n**: o workflow (`iuZvpxLHZgkKcH6a`, "Ponto - Extração de Cartão
+  via WhatsApp (Zernio)") existe configurado nesta instância n8n
+  compartilhada, com o nó de extração via Claude e o envio pro backend
+  já apontando pra `{{ $env.BACKEND_URL }}/extracoes-pendentes` com
+  header de API key — mas está **`active: false`**, ou seja, não está
+  recebendo mensagens reais do WhatsApp ainda. Precisa ser ativado (e
+  o `BACKEND_URL`/credencial conferidos de verdade) antes do pipeline
+  funcionar ponta a ponta em produção.
 - **Git**: 7 commits locais (`f864263`, `52f7a7e`, `1d0b5c1`, `7bec5dc`,
   `0c580e2`, `5c08640`, `09a23e1`) à frente de `origin/main` — ainda
   **não foram enviados** (`git push`) pro GitHub.
