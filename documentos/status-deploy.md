@@ -66,10 +66,37 @@ qualquer JWT emitido com o `JWT_SECRET` antigo also invalida.
 
 Combinado com o usuário em 3 etapas. **Etapa 1 — pronta e testada
 (2026-08-21)**: scaffold + auth + Colaboradores + Jornadas +
-Lançamento de Ponto (aba manual) + Trocas de Escala. Etapa 2
-(Dashboard + Apuração/Relatório + export) e Etapa 3 (extração por
-foto + Fila do WhatsApp — precisa de `ANTHROPIC_API_KEY`, ainda não
-configurada) ficam para sessões futuras.
+Lançamento de Ponto (aba manual) + Trocas de Escala. **Etapa 2 —
+pronta e testada (2026-08-21)**: Dashboard + Apuração/Relatório +
+export CSV. Etapa 3 (extração por foto + Fila do WhatsApp) é a
+próxima — a `ANTHROPIC_API_KEY` já foi adicionada ao `.env` local
+pelo usuário (não commitada, como o resto do `.env`).
+
+### Etapa 2 — Dashboard + Apuração/Relatório
+
+- **Backend**: `periodoDoMes` extraído para
+  `src/apuracao/date-utils.ts` (era duplicado em 2 lugares, ia virar
+  3) e reusado em `apuracao.service.ts`, `trocas-escala.controller.ts`
+  e no novo suporte a `?mes=` de `GET /registros-ponto` (que antes só
+  aceitava `?data=` de um dia — agora aceita um dos dois, 400 se
+  vier os dois ou nenhum). `GET /colaboradores` e
+  `GET /colaboradores/:id` liberados para `RH` também (só leitura —
+  criar/editar/desativar continua `ADMIN`), decorators movidos de
+  classe para método em `colaboradores.controller.ts`.
+- **Frontend**: nova feature `web/src/features/apuracao/`. Dashboard
+  (`/dashboard`, agora a tela inicial pós-login) com contagem de
+  colaboradores ativos + pendências do mês + atalho de fechamento
+  (só ADMIN). Tela de Apuração (`/apuracao`) com abas Espelho de
+  Ponto (cruza `GET /admin/apuracao` com `GET /registros-ponto?mes=`
+  no cliente para mostrar horário real de cada batida, não só
+  totais) e Pendências do mês; export CSV client-side (serializer
+  manual, sem dependência nova).
+- **Testado visualmente** (Playwright, reinstalado e removido de novo
+  só para esta verificação): espelho de ponto confirmado mostrando
+  batidas reais e até detectando corretamente uma inconsistência
+  (troca de escala sem bater com o dia trabalhado, criada durante o
+  teste da Etapa 1) com o alerta certo. RH confirmado vendo as mesmas
+  telas sem o botão de processar fechamento. Zero erros de console.
 
 - **Stack**: React + TypeScript + Vite + shadcn/ui (versão nova,
   estilo `base-nova`, sobre Base UI em vez de Radix) + Tailwind v4 +

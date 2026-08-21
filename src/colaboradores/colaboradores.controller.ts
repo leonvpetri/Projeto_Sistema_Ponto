@@ -11,32 +11,36 @@ import { UpdateColaboradorDto } from './dto/update-colaborador.dto';
 @ApiTags('colaboradores')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN)
 @Controller('colaboradores')
 export class ColaboradoresController {
   constructor(private colaboradoresService: ColaboradoresService) {}
 
   @Post()
+  @Roles(Role.ADMIN)
   create(@Body() dto: CreateColaboradorDto) {
     return this.colaboradoresService.create(dto);
   }
 
   @Get()
+  @Roles(Role.ADMIN, Role.RH)
   findAll() {
     return this.colaboradoresService.findAll();
   }
 
   @Get(':id')
+  @Roles(Role.ADMIN, Role.RH)
   findOne(@Param('id') id: string) {
     return this.colaboradoresService.findOne(id);
   }
 
   @Patch(':id')
+  @Roles(Role.ADMIN)
   update(@Param('id') id: string, @Body() dto: UpdateColaboradorDto) {
     return this.colaboradoresService.update(id, dto);
   }
 
   @Delete(':id')
+  @Roles(Role.ADMIN)
   remove(@Param('id') id: string) {
     return this.colaboradoresService.remove(id);
   }

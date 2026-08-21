@@ -7,6 +7,7 @@ import { Roles } from '../auth/roles.decorator';
 import { TrocasEscalaService } from './trocas-escala.service';
 import { CreateTrocaEscalaDto } from './dto/create-troca-escala.dto';
 import { ListarTrocasEscalaQueryDto } from './dto/listar-trocas-escala-query.dto';
+import { periodoDoMes } from '../apuracao/date-utils';
 
 @ApiTags('trocas-escala')
 @ApiBearerAuth()
@@ -23,9 +24,7 @@ export class TrocasEscalaController {
 
   @Get()
   findDoMes(@Query() dto: ListarTrocasEscalaQueryDto) {
-    const [ano, mes] = dto.mes.split('-').map(Number);
-    const inicio = new Date(ano, mes - 1, 1);
-    const fim = new Date(ano, mes, 1);
+    const { inicio, fim } = periodoDoMes(dto.mes);
     return this.trocasEscalaService.findByPeriodo(inicio, fim);
   }
 }

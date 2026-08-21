@@ -5,6 +5,8 @@ import { ColaboradorFormPage } from '@/features/colaboradores/pages/colaborador-
 import { JornadasListPage } from '@/features/jornadas/pages/jornadas-list-page'
 import { LancamentoPontoPage } from '@/features/registros-ponto/pages/lancamento-ponto-page'
 import { TrocasEscalaPage } from '@/features/trocas-escala/pages/trocas-escala-page'
+import { DashboardPage } from '@/features/apuracao/pages/dashboard-page'
+import { ApuracaoPage } from '@/features/apuracao/pages/apuracao-page'
 import { AppShell } from '@/components/layout/app-shell'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 
@@ -20,7 +22,9 @@ export function AppRoutes() {
           </ProtectedRoute>
         }
       >
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/lancamento-ponto" element={<LancamentoPontoPage />} />
+        <Route path="/apuracao" element={<ApuracaoPage />} />
         <Route path="/trocas-escala" element={<TrocasEscalaPage />} />
 
         <Route
@@ -56,10 +60,10 @@ export function AppRoutes() {
           }
         />
 
-        <Route index element={<Navigate to="/lancamento-ponto" replace />} />
+        <Route index element={<Navigate to="/dashboard" replace />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/lancamento-ponto" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }

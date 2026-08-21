@@ -8,3 +8,7 @@ export function createRegistroPonto(input: CreateRegistroPontoInput) {
 export function listRegistrosPontoDoDia(colaboradorId: string, data: string) {
   return apiFetch<RegistroPonto[]>('/registros-ponto', { query: { colaboradorId, data } })
 }
+
+export function listRegistrosPontoDoMes(colaboradorId: string, mes: string) {
+  return apiFetch<RegistroPonto[]>('/registros-ponto', { query: { colaboradorId, mes } })
+}

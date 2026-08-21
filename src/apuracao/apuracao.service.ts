@@ -3,7 +3,7 @@ import { Colaborador, Jornada } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularApuracaoDia } from './apuracao-engine';
 import { ApuracaoResultado, StatusApuracao } from './apuracao.types';
-import { formatDataISO } from './date-utils';
+import { formatDataISO, periodoDoMes } from './date-utils';
 
 type ColaboradorComJornada = Colaborador & { jornada: Jornada };
 
@@ -133,11 +133,4 @@ export class ApuracaoService {
       alertas: JSON.parse(p.alertas) as string[],
     }));
   }
-}
-
-function periodoDoMes(mes: string): { inicio: Date; fim: Date } {
-  const [ano, mesNum] = mes.split('-').map(Number);
-  const inicio = new Date(ano, mesNum - 1, 1);
-  const fim = new Date(ano, mesNum, 1);
-  return { inicio, fim };
 }

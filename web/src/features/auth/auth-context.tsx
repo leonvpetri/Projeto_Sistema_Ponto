@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         setAccessToken(accessToken)
         setUser(decodeUser(accessToken))
-        navigate('/lancamento-ponto', { replace: true })
+        navigate('/dashboard', { replace: true })
       },
       logout: () => {
         clearAccessToken()

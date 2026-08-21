@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createRegistroPonto, listRegistrosPontoDoDia } from './api'
+import { createRegistroPonto, listRegistrosPontoDoDia, listRegistrosPontoDoMes } from './api'
 import type { CreateRegistroPontoInput } from './types'
 
 export function registrosPontoDoDiaKey(colaboradorId: string, data: string) {
   return ['registros-ponto', colaboradorId, data]
+}
+
+export function registrosPontoDoMesKey(colaboradorId: string, mes: string) {
+  return ['registros-ponto', 'mes', colaboradorId, mes]
 }
 
 export function useRegistrosPontoDoDia(colaboradorId: string | undefined, data: string | undefined) {
@@ -11,6 +15,14 @@ export function useRegistrosPontoDoDia(colaboradorId: string | undefined, data: 
     queryKey: registrosPontoDoDiaKey(colaboradorId ?? '', data ?? ''),
     queryFn: () => listRegistrosPontoDoDia(colaboradorId as string, data as string),
     enabled: !!colaboradorId && !!data,
+  })
+}
+
+export function useRegistrosPontoDoMes(colaboradorId: string | undefined, mes: string | undefined) {
+  return useQuery({
+    queryKey: registrosPontoDoMesKey(colaboradorId ?? '', mes ?? ''),
+    queryFn: () => listRegistrosPontoDoMes(colaboradorId as string, mes as string),
+    enabled: !!colaboradorId && !!mes,
   })
 }
 

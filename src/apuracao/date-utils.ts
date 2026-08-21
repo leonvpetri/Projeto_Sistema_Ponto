@@ -14,3 +14,11 @@ export function formatDataISO(data: Date): string {
   const dia = String(data.getDate()).padStart(2, '0');
   return `${ano}-${mes}-${dia}`;
 }
+
+/** Converte "YYYY-MM" no intervalo [primeiro dia, primeiro dia do mês seguinte). */
+export function periodoDoMes(mes: string): { inicio: Date; fim: Date } {
+  const [ano, mesNum] = mes.split('-').map(Number);
+  const inicio = new Date(ano, mesNum - 1, 1);
+  const fim = new Date(ano, mesNum, 1);
+  return { inicio, fim };
+}

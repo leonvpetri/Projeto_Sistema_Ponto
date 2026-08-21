@@ -7,7 +7,9 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
+  { to: '/dashboard', label: 'Dashboard' },
   { to: '/lancamento-ponto', label: 'Lançamento de Ponto' },
+  { to: '/apuracao', label: 'Apuração' },
   { to: '/trocas-escala', label: 'Trocas de Escala' },
   { to: '/colaboradores', label: 'Colaboradores', requiredRoles: ['ADMIN'] },
   { to: '/jornadas', label: 'Jornadas', requiredRoles: ['ADMIN'] },

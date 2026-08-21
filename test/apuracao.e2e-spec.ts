@@ -126,6 +126,34 @@ describe('Fluxo completo de apuração (e2e)', () => {
     expect(outroDiaRes.body).toHaveLength(0);
   });
 
+  it('lista os registros de ponto de um colaborador num mês inteiro', async () => {
+    const mesRes = await request(app.getHttpServer())
+      .get('/registros-ponto')
+      .query({ colaboradorId, mes: '2026-08' })
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(mesRes.body).toHaveLength(4);
+
+    const outroMesRes = await request(app.getHttpServer())
+      .get('/registros-ponto')
+      .query({ colaboradorId, mes: '2026-09' })
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(outroMesRes.body).toHaveLength(0);
+
+    await request(app.getHttpServer())
+      .get('/registros-ponto')
+      .query({ colaboradorId })
+      .set('Authorization', `Bearer ${token}`)
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get('/registros-ponto')
+      .query({ colaboradorId, data: '2026-08-06', mes: '2026-08' })
+      .set('Authorization', `Bearer ${token}`)
+      .expect(400);
+  });
+
   it('cria e lista trocas de escala do mês', async () => {
     const substitutoRes = await request(app.getHttpServer())
       .post('/colaboradores')
@@ -190,6 +218,22 @@ describe('Fluxo completo de apuração (e2e)', () => {
       .post('/admin/apuracao/processar')
       .query({ mes: '2026-08' })
       .set('Authorization', `Bearer ${tokenRh}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .get('/colaboradores')
+      .set('Authorization', `Bearer ${tokenRh}`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get(`/colaboradores/${colaboradorId}`)
+      .set('Authorization', `Bearer ${tokenRh}`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/colaboradores')
+      .set('Authorization', `Bearer ${tokenRh}`)
+      .send({ nome: 'RH Não Pode Criar', cpf: '00011122233', setor: 'TI', jornadaId })
       .expect(403);
   });
 });
