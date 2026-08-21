@@ -264,10 +264,9 @@ container Docker de produção):**
   header de API key — mas está **`active: false`**, ou seja, não está
   recebendo mensagens reais do WhatsApp ainda. Precisa ser ativado (e
   o `BACKEND_URL`/credencial conferidos de verdade) antes do pipeline
-  funcionar ponta a ponta em produção. **Além disso**: a credencial de
-  API key desse node ainda usa o `N8N_WEBHOOK_SECRET` **antigo** — foi
-  rotacionado no backend em 2026-08-21 (ver seção "Secrets" acima) e
-  ainda não foi atualizada no n8n. Atualizar antes de ativar o workflow.
+  funcionar ponta a ponta em produção. Credencial de API key desse node
+  **já atualizada** (2026-08-21) com o `N8N_WEBHOOK_SECRET` novo — só
+  falta ativar o workflow quando for hora de receber mensagens reais.
 - **Git**: todos os commits foram enviados pro GitHub (`git push`),
   último push em 2026-08-21 (`0d6e958`, `main` sincronizado com
   `origin/main`).
