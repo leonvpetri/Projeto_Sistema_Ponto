@@ -11,7 +11,10 @@ nesta mesma pasta.
   (buildada localmente nesta VPS a partir do `Dockerfile` na raiz,
   **rebuildada em 2026-08-24** com Afastamento + fix de timezone +
   `TZ=UTC`, commit `c84b350` — ver seção "Afastamento + fix de
-  timezone: redeployado" abaixo).
+  timezone: redeployado" abaixo — e novamente **rebuildada em
+  2026-08-24 à noite** com o fix de `parseDataHoraLiteralUTC`, commit
+  `211316a` — ver seção "Fix de timezone na criação de RegistroPonto"
+  no fim deste arquivo).
 - **Rede Docker**: `easypanel-artefinal` (mesma rede overlay do n8n,
   `artefinal_n8n`). URL interna: `http://ponto-backend:3000`.
   **Temporariamente** também publicada em `127.0.0.1:3002` (host) para
@@ -385,7 +388,7 @@ container Docker de produção):**
   **já atualizada** (2026-08-21) com o `N8N_WEBHOOK_SECRET` novo — só
   falta ativar o workflow quando for hora de receber mensagens reais.
 - **Git**: todos os commits foram enviados pro GitHub (`git push`),
-  último push em 2026-08-24 (`7be2268`, `main` sincronizado com
+  último push em 2026-08-24 (`211316a`, `main` sincronizado com
   `origin/main`).
 - **Testes e2e**: resolvido — `.env.test` criado (gitignorado, secrets
   fake só para teste) e bug de cleanup do `test/setup-e2e.ts` corrigido.
@@ -393,3 +396,54 @@ container Docker de produção):**
 - **JWT**: continua usando `JWT_SECRET` simétrico (não RS256), por decisão
   explícita de manter compatível com o código existente em vez de
   refatorar o `AuthModule`.
+
+## Atualização 2026-08-24 (noite) — fix de timezone na criação de RegistroPonto
+
+Commit `211316a`. Investigação disparada por um CSV que saiu com os
+horários da Márcia deslocados em +3h — o dado gravado em produção
+(auditado direto no `prod.db`) estava correto; o deslocamento
+apareceu numa sessão separada testando "Lançamento por Foto" contra
+um backend local sem `TZ=UTC`.
+
+**Causa**: os 3 fluxos que criam `RegistroPonto` (lançamento manual,
+lançamento por foto — mesmo endpoint `POST /registros-ponto` — e
+confirmar da Fila do WhatsApp) sempre montaram o horário do mesmo
+jeito no front-end (`"YYYY-MM-DDTHH:mm:00"`, sem timezone). Os 2
+pontos de escrita no backend (`registros-ponto.service.ts` e
+`extracoes-pendentes.service.ts`) faziam `new Date(stringSemZ)`, que
+o motor JS interpreta como hora local do *processo*, não como UTC
+literal — só dava certo em produção porque o `Dockerfile` fixa
+`ENV TZ=UTC`; em qualquer host sem essa variável (dev local, outra
+sessão) o horário digitado saía deslocado pelo fuso do host.
+
+**Fix**: `parseDataHoraLiteralUTC()` novo em
+`src/apuracao/date-utils.ts` (mesma família de `parseDataISO`) usa
+`Date.UTC(...)` explicitamente pra strings sem timezone — não
+depende mais do TZ do processo. Aplicado nos 2 pontos de escrita.
+
+**Auditoria de dado real**: os 40 `RegistroPonto` com
+`origem = IMPORTACAO_FOTO` já existentes em produção vêm todos de
+uma única `ExtracaoPendente CONFIRMADA` (Fila do WhatsApp, sempre
+rodou dentro do container = sempre UTC) — nenhum dado precisou de
+correção manual.
+
+**Testes**: unitário (`date-utils.spec.ts`, varia `TZ` do processo e
+confirma que o resultado não muda) + e2e novo
+(`registro-ponto-timezone.e2e-spec.ts`, cobre os 3 fluxos). Validado
+que o e2e pega a regressão de verdade: revertendo o fix (`git
+stash`) nesta VPS (CEST, UTC+2) o teste falha com -2h de
+deslocamento.
+
+**Redeploy**: sem migration nova (fix só de código). Backup do
+`prod.db` real feito por precaução
+(`prod.db.bak-20260824232917-pre-timezone-fix-redeploy`), imagem
+rebuildada, container recriado com env/rede/mount/porta idênticos.
+Verificado no ar: `/docs` 200 local e via rede do n8n, `TZ=UTC`
+confirmado no container, `prisma migrate status` "up to date".
+
+**Limpeza feita na mesma sessão** (não relacionada ao bug, lixo de
+sessão anterior): processo `npm run dev` do Vite (porta 5173, rodando
+desde 21/08) e um `npm run start:dev`/`nest start --watch` esquecido
+na porta 3001 foram encerrados; `prisma/dev.db` e `prisma/test.db`
+removidos (só tinham fixtures de teste, gitignorados, regeneráveis
+via `prisma db push` + seed).
