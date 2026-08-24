@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { parseDataHoraLiteralUTC } from '../apuracao/date-utils';
 import { CreateRegistroPontoDto } from './dto/create-registro-ponto.dto';
 
 @Injectable()
@@ -10,7 +11,7 @@ export class RegistrosPontoService {
     return this.prisma.registroPonto.create({
       data: {
         colaboradorId: dto.colaboradorId,
-        dataHora: new Date(dto.dataHora),
+        dataHora: parseDataHoraLiteralUTC(dto.dataHora),
         tipo: dto.tipo,
         origem: dto.origem ?? 'CARTAO_MECANICO',
       },

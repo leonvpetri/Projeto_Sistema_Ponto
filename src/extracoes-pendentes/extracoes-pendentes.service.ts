@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Colaborador, Prisma, StatusExtracao } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { parseDataISO } from '../apuracao/date-utils';
+import { parseDataHoraLiteralUTC, parseDataISO } from '../apuracao/date-utils';
 import { CriarExtracaoPendenteDto } from './dto/criar-extracao-pendente.dto';
 import { ConfirmarExtracaoDto } from './dto/confirmar-extracao.dto';
 import { RejeitarExtracaoDto } from './dto/rejeitar-extracao.dto';
@@ -84,7 +84,7 @@ export class ExtracoesPendentesService {
       this.prisma.registroPonto.createMany({
         data: dto.registros.map((registro) => ({
           colaboradorId,
-          dataHora: new Date(registro.dataHora),
+          dataHora: parseDataHoraLiteralUTC(registro.dataHora),
           tipo: registro.tipo,
           origem: 'IMPORTACAO_FOTO',
         })),
