@@ -179,9 +179,13 @@ describe('Fluxo completo de apuração (e2e)', () => {
       .query({ mes: '2026-08' })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
-    expect(
-      listaAgostoRes.body.some((t: { colaboradorOriginalId: string }) => t.colaboradorOriginalId === colaboradorId),
-    ).toBe(true);
+    const trocaCriada = listaAgostoRes.body.find(
+      (t: { colaboradorOriginalId: string }) => t.colaboradorOriginalId === colaboradorId,
+    );
+    expect(trocaCriada).toBeDefined();
+    // "data" é um dia, não um instante — precisa voltar exatamente como
+    // enviado, sem deslocar 1 dia por causa do fuso horário do servidor
+    expect(trocaCriada.data).toBe('2026-08-08');
 
     const listaSetembroRes = await request(app.getHttpServer())
       .get('/trocas-escala')
@@ -235,5 +239,54 @@ describe('Fluxo completo de apuração (e2e)', () => {
       .set('Authorization', `Bearer ${tokenRh}`)
       .send({ nome: 'RH Não Pode Criar', cpf: '00011122233', setor: 'TI', jornadaId })
       .expect(403);
+  });
+
+  it('dataBaseEscala12x36 gera a paridade correta pelo caminho real (DTO → service → motor)', async () => {
+    const jornada12x36Res = await request(app.getHttpServer())
+      .post('/jornadas')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        nome: '12x36 E2E',
+        tipo: 'ESCALA_12X36',
+        cargaDiariaEsperadaMin: 720,
+        toleranciaBancoHorasMin: 10,
+      })
+      .expect(201);
+
+    const colaborador12x36Res = await request(app.getHttpServer())
+      .post('/colaboradores')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        nome: 'Porteiro 12x36 E2E',
+        cpf: '77788899900',
+        setor: 'Portaria',
+        jornadaId: jornada12x36Res.body.id,
+        dataBaseEscala12x36: '2026-08-01',
+      })
+      .expect(201);
+    // dataBaseEscala12x36 é um dia, não um instante — precisa voltar exatamente
+    // como enviado (regressão do bug de fuso horário: new Date('YYYY-MM-DD')
+    // parseava como UTC e invertia a paridade par/ímpar em 100% dos dias)
+    expect(colaborador12x36Res.body.dataBaseEscala12x36).toBe('2026-08-01');
+    const colaborador12x36Id = colaborador12x36Res.body.id;
+
+    await request(app.getHttpServer())
+      .post('/admin/apuracao/processar')
+      .query({ mes: '2026-08' })
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+
+    const espelhoRes = await request(app.getHttpServer())
+      .get('/admin/apuracao')
+      .query({ colaboradorId: colaborador12x36Id, mes: '2026-08' })
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    const porData = new Map(espelhoRes.body.map((d: { data: string }) => [d.data, d]));
+    // a própria data-base é dia de trabalho (diffDias=0, par); depois alterna
+    expect((porData.get('2026-08-01') as { diaEsperadoTrabalho: boolean }).diaEsperadoTrabalho).toBe(true);
+    expect((porData.get('2026-08-02') as { diaEsperadoTrabalho: boolean }).diaEsperadoTrabalho).toBe(false);
+    expect((porData.get('2026-08-03') as { diaEsperadoTrabalho: boolean }).diaEsperadoTrabalho).toBe(true);
+    expect((porData.get('2026-08-04') as { diaEsperadoTrabalho: boolean }).diaEsperadoTrabalho).toBe(false);
   });
 });
