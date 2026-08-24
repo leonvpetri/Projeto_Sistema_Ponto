@@ -1,4 +1,5 @@
 import type { RegistroPonto, TipoRegistro } from '@/features/registros-ponto/types'
+import { TIPO_AFASTAMENTO_LABEL, type TipoAfastamento } from '@/features/afastamentos/types'
 import type { ApuracaoResultado, StatusApuracao } from './types'
 
 export interface EspelhoRow {
@@ -10,6 +11,15 @@ export interface EspelhoRow {
   totalTrabalhadoMin: number | null
   status: StatusApuracao
   alertas: string[]
+  afastamentoTipo: string | null
+  afastamentoAbonado: boolean | null
+}
+
+/** "Férias (Abonado)" pro dia de AFASTAMENTO; traço pros demais status (FOLGA incluso). */
+export function formatAfastamento(row: Pick<EspelhoRow, 'status' | 'afastamentoTipo' | 'afastamentoAbonado'>): string {
+  if (row.status !== 'AFASTAMENTO' || !row.afastamentoTipo) return '—'
+  const label = TIPO_AFASTAMENTO_LABEL[row.afastamentoTipo as TipoAfastamento] ?? row.afastamentoTipo
+  return `${label} (${row.afastamentoAbonado ? 'Abonado' : 'Não abonado'})`
 }
 
 const TIPO_PARA_COLUNA: Record<TipoRegistro, keyof Pick<EspelhoRow, 'entrada1' | 'saida1' | 'entrada2' | 'saida2'>> = {
@@ -40,6 +50,8 @@ export function buildEspelhoRows(apuracao: ApuracaoResultado[], registros: Regis
         totalTrabalhadoMin: dia.totalTrabalhadoMin,
         status: dia.status,
         alertas: dia.alertas,
+        afastamentoTipo: dia.afastamentoTipo,
+        afastamentoAbonado: dia.afastamentoAbonado,
       }
       for (const registro of registrosPorDia.get(dia.data) ?? []) {
         row[TIPO_PARA_COLUNA[registro.tipo]] = registro.dataHora.slice(11, 16)
@@ -58,7 +70,17 @@ export function formatMinutos(min: number | null): string {
 }
 
 export function espelhoRowsToCsv(rows: EspelhoRow[]): string {
-  const cabecalho = ['Data', 'Entrada 1', 'Saída 1', 'Entrada 2', 'Saída 2', 'Total trabalhado', 'Status', 'Alertas']
+  const cabecalho = [
+    'Data',
+    'Entrada 1',
+    'Saída 1',
+    'Entrada 2',
+    'Saída 2',
+    'Total trabalhado',
+    'Status',
+    'Afastamento',
+    'Alertas',
+  ]
   const linhas = rows.map((row) => [
     row.data,
     row.entrada1 ?? '',
@@ -67,6 +89,7 @@ export function espelhoRowsToCsv(rows: EspelhoRow[]): string {
     row.saida2 ?? '',
     formatMinutos(row.totalTrabalhadoMin),
     row.status,
+    formatAfastamento(row),
     row.alertas.join(' | '),
   ])
 

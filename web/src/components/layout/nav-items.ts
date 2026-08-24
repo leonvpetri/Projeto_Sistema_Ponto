@@ -12,6 +12,7 @@ export const navItems: NavItem[] = [
   { to: '/fila-whatsapp', label: 'Fila do WhatsApp' },
   { to: '/apuracao', label: 'Apuração' },
   { to: '/trocas-escala', label: 'Trocas de Escala' },
+  { to: '/afastamentos', label: 'Afastamentos' },
   { to: '/colaboradores', label: 'Colaboradores', requiredRoles: ['ADMIN'] },
   { to: '/jornadas', label: 'Jornadas', requiredRoles: ['ADMIN'] },
 ]

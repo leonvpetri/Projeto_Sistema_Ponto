@@ -8,6 +8,7 @@ const VARIANT_POR_STATUS: Record<StatusApuracao, 'default' | 'secondary' | 'outl
   HORA_EXTRA: 'outline',
   FALTA: 'destructive',
   INCONSISTENTE: 'destructive',
+  AFASTAMENTO: 'secondary',
 }
 
 export function StatusBadge({ status }: { status: StatusApuracao }) {

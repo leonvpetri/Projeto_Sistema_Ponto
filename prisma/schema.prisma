@@ -70,6 +70,7 @@ model Colaborador {
   apuracoes            ApuracaoDiaria[]
   extracoesPendentes   ExtracaoPendente[]
   observacoesDia       ObservacaoDia[]
+  afastamentos         Afastamento[]
   trocasComoOriginal   TrocaEscala[]    @relation("EscalaOriginal")
   trocasComoSubstituto TrocaEscala[]    @relation("EscalaSubstituto")
 
@@ -212,12 +213,67 @@ model ApuracaoDiaria {
   cargaEsperadaMin          Int // vem da Jornada (8h, 8h30, 12h...)
   diferencaBancoHorasMin    Int? // totalTrabalhado - cargaEsperada (+ extra / - falta)
 
-  status  String // OK | ATRASO | HORA_EXTRA | FALTA | FOLGA | INCONSISTENTE
+  status  String // OK | ATRASO | HORA_EXTRA | FALTA | FOLGA | INCONSISTENTE | AFASTAMENTO
   alertas String // JSON stringificado (array de strings) — SQLite não tem String[]
+
+  // preenchidos só quando status == AFASTAMENTO, pro relatório/CSV mostrar
+  // o tipo e se é abonado sem precisar voltar no model Afastamento
+  afastamentoTipo    String?
+  afastamentoAbonado Boolean?
 
   calculadoEm DateTime @default(now())
 
   @@unique([colaboradorId, data])
+}
+
+// ------------------------------------------------------------
+// AFASTAMENTO — ausência planejada/justificada (férias, atestado,
+// licença...) de um ou mais dias. Existe pra distinguir de FALTA
+// (ausência sem justificativa registrada). "Trabalho remoto" e
+// "problema técnico" ficam de fora de propósito — são dias em que a
+// pessoa trabalhou fora do cartão mecânico, um problema diferente.
+// ------------------------------------------------------------
+enum TipoAfastamento {
+  // Legais (abonadas por lei, mas o abono real é decidido pelo RH — ver campo abonado)
+  ATESTADO_MEDICO
+  ATESTADO_ACOMPANHAMENTO
+  LICENCA_NOJO
+  LICENCA_GALA
+  LICENCA_PATERNIDADE
+  LICENCA_MATERNIDADE
+  DOACAO_SANGUE
+  CONVOCACAO_JUDICIAL
+  SERVICO_ELEITORAL
+  EXAME_PREVENTIVO
+  DECLARACAO_COMPARECIMENTO
+  FERIAS
+  // Administrativas/internas
+  FOLGA_COMPENSATORIA
+  TREINAMENTO_CORPORATIVO
+  // Não abonadas (tipicamente desconta salário/DSR)
+  MOTIVO_PESSOAL
+  PROBLEMA_TRANSPORTE
+  TRANSITO
+  PROBLEMA_CLIMATICO
+  OUTRO
+}
+
+model Afastamento {
+  id            String      @id @default(uuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  dataInicio DateTime
+  dataFim    DateTime
+  tipo       TipoAfastamento
+  abonado    Boolean // decidido pelo RH no lançamento; front-end só sugere um valor inicial
+  motivo     String? // obrigatório no backend quando tipo = OUTRO ou MOTIVO_PESSOAL
+
+  registradoPor String
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  @@index([colaboradorId, dataInicio, dataFim])
 }
 
 // ------------------------------------------------------------

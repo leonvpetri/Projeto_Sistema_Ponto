@@ -9,6 +9,7 @@ import { TrocasEscalaModule } from './trocas-escala/trocas-escala.module';
 import { ApuracaoModule } from './apuracao/apuracao.module';
 import { ExtracoesPendentesModule } from './extracoes-pendentes/extracoes-pendentes.module';
 import { ObservacoesDiaModule } from './observacoes-dia/observacoes-dia.module';
+import { AfastamentosModule } from './afastamentos/afastamentos.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ObservacoesDiaModule } from './observacoes-dia/observacoes-dia.module';
     ApuracaoModule,
     ExtracoesPendentesModule,
     ObservacoesDiaModule,
+    AfastamentosModule,
   ],
 })
 export class AppModule {}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calcularApuracaoDia } from './apuracao-engine';
-import { ColaboradorCalc, JornadaCalc, RegistroCalc, TrocaCalc } from './apuracao.types';
+import { AfastamentoCalc, ColaboradorCalc, JornadaCalc, RegistroCalc, TrocaCalc } from './apuracao.types';
 import { parseDataISO } from './date-utils';
 
 function dt(dataStr: string, horaStr: string): Date {
@@ -166,5 +166,73 @@ describe('ApuracaoEngine — calcularApuracaoDia', () => {
 
     expect(resultado.diaEsperadoTrabalho).toBe(true);
     expect(resultado.status).not.toBe('INCONSISTENTE');
+  });
+
+  it('Cenário 5a — Márcia de atestado, sem bater ponto: status AFASTAMENTO, não FALTA', () => {
+    const jornadaMarcia: JornadaCalc = {
+      tipo: 'PADRAO_5X2',
+      cargaDiariaEsperadaMin: 8 * 60,
+      toleranciaBancoHorasMin: 10,
+      temAdicionalNoturno: false,
+      horarioNoturnoInicio: '22:00',
+      horarioNoturnoFim: '05:00',
+      horaNoturnaReduzida: true,
+    };
+    const marcia: ColaboradorCalc = { id: 'marcia', dataBaseEscala12x36: null };
+    const atestado: AfastamentoCalc = {
+      tipo: 'ATESTADO_MEDICO',
+      abonado: true,
+      dataInicio: parseDataISO('2026-08-05'),
+      dataFim: parseDataISO('2026-08-07'),
+    };
+
+    const resultado = calcularApuracaoDia({
+      colaborador: marcia,
+      jornada: jornadaMarcia,
+      data: parseDataISO('2026-08-06'),
+      registrosDoDia: [],
+      trocasDoDia: [],
+      afastamentosDoDia: [atestado],
+    });
+
+    expect(resultado.diaEsperadoTrabalho).toBe(true);
+    expect(resultado.status).toBe('AFASTAMENTO');
+    expect(resultado.afastamentoTipo).toBe('ATESTADO_MEDICO');
+    expect(resultado.afastamentoAbonado).toBe(true);
+    // não entra no cálculo de banco de horas do dia
+    expect(resultado.totalTrabalhadoMin).toBeNull();
+    expect(resultado.diferencaBancoHorasMin).toBeNull();
+  });
+
+  it('Cenário 5b — Márcia bateu ponto num dia coberto por afastamento: INCONSISTENTE, não escolhe um dos dois', () => {
+    const jornadaMarcia: JornadaCalc = {
+      tipo: 'PADRAO_5X2',
+      cargaDiariaEsperadaMin: 8 * 60,
+      toleranciaBancoHorasMin: 10,
+      temAdicionalNoturno: false,
+      horarioNoturnoInicio: '22:00',
+      horarioNoturnoFim: '05:00',
+      horaNoturnaReduzida: true,
+    };
+    const marcia: ColaboradorCalc = { id: 'marcia', dataBaseEscala12x36: null };
+    const atestado: AfastamentoCalc = {
+      tipo: 'ATESTADO_MEDICO',
+      abonado: true,
+      dataInicio: parseDataISO('2026-08-06'),
+      dataFim: parseDataISO('2026-08-06'),
+    };
+
+    const resultado = calcularApuracaoDia({
+      colaborador: marcia,
+      jornada: jornadaMarcia,
+      data: parseDataISO('2026-08-06'),
+      registrosDoDia: [reg(dt('2026-08-06', '08:00')), reg(dt('2026-08-06', '11:00'))],
+      trocasDoDia: [],
+      afastamentosDoDia: [atestado],
+    });
+
+    expect(resultado.status).toBe('INCONSISTENTE');
+    expect(resultado.afastamentoTipo).toBeNull();
+    expect(resultado.alertas.some((a) => a.includes('afastamento'))).toBe(true);
   });
 });

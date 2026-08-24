@@ -6,6 +6,7 @@
 // ============================================================
 
 import {
+  AfastamentoCalc,
   ApuracaoResultado,
   ColaboradorCalc,
   IntervaloCalc,
@@ -169,9 +170,11 @@ export function calcularApuracaoDia(params: {
   data: Date;
   registrosDoDia: RegistroCalc[];
   trocasDoDia: TrocaCalc[];
+  afastamentosDoDia?: AfastamentoCalc[];
 }): ApuracaoResultado {
-  const { colaborador, jornada, data, registrosDoDia, trocasDoDia } = params;
+  const { colaborador, jornada, data, registrosDoDia, trocasDoDia, afastamentosDoDia = [] } = params;
   const alertas: string[] = [];
+  const afastamento = afastamentosDoDia[0] ?? null;
 
   const { esperado, motivo } = diaEsperadoTrabalho(colaborador, jornada, data, trocasDoDia);
   const { totalMin, intervalos, batidaImpar } = calcularTotalTrabalhadoMin(registrosDoDia);
@@ -189,10 +192,18 @@ export function calcularApuracaoDia(params: {
   let status: ApuracaoResultado['status'];
   const diferencaMin = totalMin - (esperado ? cargaEsperadaMin : 0);
 
-  if (registrosDoDia.length === 0 && !esperado) {
+  if (afastamento && registrosDoDia.length > 0) {
+    // Raro (ex.: colaborador trabalhou parte do dia antes de sair de
+    // atestado) — não escolhe um dos dois automaticamente, só reporta
+    // pro RH decidir no fechamento.
+    status = 'INCONSISTENTE';
+    alertas.push(
+      `Trabalhou em dia de afastamento (${afastamento.tipo}, ${formatDataISO(afastamento.dataInicio)} a ${formatDataISO(afastamento.dataFim)}) — verificar sobreposição`,
+    );
+  } else if (registrosDoDia.length === 0 && !esperado) {
     status = 'FOLGA';
   } else if (registrosDoDia.length === 0 && esperado) {
-    status = 'FALTA';
+    status = afastamento ? 'AFASTAMENTO' : 'FALTA';
   } else if (!esperado && registrosDoDia.length > 0) {
     status = 'INCONSISTENTE';
     alertas.push(
@@ -218,5 +229,7 @@ export function calcularApuracaoDia(params: {
     diferencaBancoHorasMin: registrosDoDia.length ? diferencaMin : null,
     status,
     alertas,
+    afastamentoTipo: status === 'AFASTAMENTO' ? afastamento!.tipo : null,
+    afastamentoAbonado: status === 'AFASTAMENTO' ? afastamento!.abonado : null,
   };
 }

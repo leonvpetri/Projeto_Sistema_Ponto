@@ -42,7 +42,7 @@ export class ApuracaoService {
     const inicioDia = new Date(data.getFullYear(), data.getMonth(), data.getDate());
     const fimDia = new Date(inicioDia.getFullYear(), inicioDia.getMonth(), inicioDia.getDate() + 1);
 
-    const [registrosDoDia, trocasDoDia] = await Promise.all([
+    const [registrosDoDia, trocasDoDia, afastamentosDoDia] = await Promise.all([
       this.prisma.registroPonto.findMany({
         where: { colaboradorId: colaborador.id, dataHora: { gte: inicioDia, lt: fimDia } },
         orderBy: { dataHora: 'asc' },
@@ -53,6 +53,9 @@ export class ApuracaoService {
           OR: [{ colaboradorOriginalId: colaborador.id }, { colaboradorSubstitutoId: colaborador.id }],
         },
       }),
+      this.prisma.afastamento.findMany({
+        where: { colaboradorId: colaborador.id, dataInicio: { lte: inicioDia }, dataFim: { gte: inicioDia } },
+      }),
     ]);
 
     const resultado = calcularApuracaoDia({
@@ -61,6 +64,7 @@ export class ApuracaoService {
       data: inicioDia,
       registrosDoDia,
       trocasDoDia,
+      afastamentosDoDia,
     });
 
     await this.prisma.apuracaoDiaria.upsert({
@@ -76,6 +80,8 @@ export class ApuracaoService {
         diferencaBancoHorasMin: resultado.diferencaBancoHorasMin,
         status: resultado.status,
         alertas: JSON.stringify(resultado.alertas),
+        afastamentoTipo: resultado.afastamentoTipo,
+        afastamentoAbonado: resultado.afastamentoAbonado,
       },
       update: {
         diaEsperadoTrabalho: resultado.diaEsperadoTrabalho,
@@ -86,6 +92,8 @@ export class ApuracaoService {
         diferencaBancoHorasMin: resultado.diferencaBancoHorasMin,
         status: resultado.status,
         alertas: JSON.stringify(resultado.alertas),
+        afastamentoTipo: resultado.afastamentoTipo,
+        afastamentoAbonado: resultado.afastamentoAbonado,
         calculadoEm: new Date(),
       },
     });
@@ -113,6 +121,8 @@ export class ApuracaoService {
       diferencaBancoHorasMin: a.diferencaBancoHorasMin,
       status: a.status as StatusApuracao,
       alertas: JSON.parse(a.alertas) as string[],
+      afastamentoTipo: a.afastamentoTipo,
+      afastamentoAbonado: a.afastamentoAbonado,
     }));
   }
 

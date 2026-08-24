@@ -26,13 +26,27 @@ export interface TrocaCalc {
   colaboradorSubstitutoId: string;
 }
 
+export interface AfastamentoCalc {
+  tipo: string;
+  abonado: boolean;
+  dataInicio: Date;
+  dataFim: Date;
+}
+
 export interface IntervaloCalc {
   entrada: Date;
   saida: Date;
   min: number;
 }
 
-export type StatusApuracao = 'OK' | 'ATRASO' | 'HORA_EXTRA' | 'FALTA' | 'FOLGA' | 'INCONSISTENTE';
+export type StatusApuracao =
+  | 'OK'
+  | 'ATRASO'
+  | 'HORA_EXTRA'
+  | 'FALTA'
+  | 'FOLGA'
+  | 'INCONSISTENTE'
+  | 'AFASTAMENTO';
 
 export interface ApuracaoResultado {
   colaboradorId: string;
@@ -45,4 +59,6 @@ export interface ApuracaoResultado {
   diferencaBancoHorasMin: number | null;
   status: StatusApuracao;
   alertas: string[];
+  afastamentoTipo: string | null;
+  afastamentoAbonado: boolean | null;
 }

@@ -4,7 +4,7 @@ import { useColaboradores } from '@/features/colaboradores/hooks'
 import { useRegistrosPontoDoMes } from '@/features/registros-ponto/hooks'
 import { useAuth } from '@/features/auth/auth-context'
 import { useApuracaoDoMes, usePendenciasDoMes, useProcessarApuracao } from '../hooks'
-import { buildEspelhoRows, espelhoRowsToCsv, formatMinutos, baixarCsv } from '../espelho'
+import { buildEspelhoRows, espelhoRowsToCsv, formatAfastamento, formatMinutos, baixarCsv } from '../espelho'
 import { StatusBadge } from '../components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -111,6 +111,7 @@ export function ApuracaoPage() {
                   <TableHead>Saída 2</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Afastamento</TableHead>
                   <TableHead>Alertas</TableHead>
                 </TableRow>
               </TableHeader>
@@ -126,6 +127,7 @@ export function ApuracaoPage() {
                     <TableCell>
                       <StatusBadge status={row.status} />
                     </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{formatAfastamento(row)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{row.alertas.join(', ') || '—'}</TableCell>
                   </TableRow>
                 ))}

@@ -5,6 +5,7 @@ import { ColaboradorFormPage } from '@/features/colaboradores/pages/colaborador-
 import { JornadasListPage } from '@/features/jornadas/pages/jornadas-list-page'
 import { LancamentoPontoPage } from '@/features/registros-ponto/pages/lancamento-ponto-page'
 import { TrocasEscalaPage } from '@/features/trocas-escala/pages/trocas-escala-page'
+import { AfastamentosPage } from '@/features/afastamentos/pages/afastamentos-page'
 import { DashboardPage } from '@/features/apuracao/pages/dashboard-page'
 import { ApuracaoPage } from '@/features/apuracao/pages/apuracao-page'
 import { FilaWhatsAppPage } from '@/features/extracoes-pendentes/pages/fila-whatsapp-page'
@@ -28,6 +29,7 @@ export function AppRoutes() {
         <Route path="/fila-whatsapp" element={<FilaWhatsAppPage />} />
         <Route path="/apuracao" element={<ApuracaoPage />} />
         <Route path="/trocas-escala" element={<TrocasEscalaPage />} />
+        <Route path="/afastamentos" element={<AfastamentosPage />} />
 
         <Route
           path="/colaboradores"
