@@ -98,6 +98,65 @@ na cópia de teste, que tinha o mesmo estado vazio). Produção ainda não
 tem nenhuma jornada nem colaborador cadastrado — só 1 usuário e as 2
 `ExtracaoPendente` de teste antigas.
 
+## PENDENTE — Afastamento + fix de timezone (2026-08-24, sessão em andamento)
+
+**Status: implementado e commitado localmente, `git push` e redeploy
+em produção AINDA NÃO FEITOS.** Sessão pausada (usuário saiu, conexão
+pode cair) antes de chegar nessa etapa — continuar por aqui.
+
+- Commit `7a74a25` — model novo `Afastamento` (spec
+  `prompt-afastamentos-claude-code.md`): distingue ausência
+  justificada (férias/atestado/licença) de `FALTA` de verdade. Motor
+  ganha status `AFASTAMENTO` (não conta pendência nem banco de horas)
+  e trata sobreposição `Afastamento`+`RegistroPonto` no mesmo dia como
+  `INCONSISTENTE` (não escolhe um dos dois). CRUD `/afastamentos`
+  (RH+ADMIN) + tela "Afastamentos" no front-end. Migration nova:
+  `20260824161826_add_afastamento` (aditiva: `CREATE TABLE` +
+  `ADD COLUMN afastamentoTipo/afastamentoAbonado` em `ApuracaoDiaria`
+  — sem `DROP`, mais simples que a de simplificação do `TipoEscala`).
+
+- Commit `c84b350` — **bug real de timezone encontrado e corrigido**
+  ao auditar o projeto inteiro por `new Date(` depois de um achado
+  parecido no `Afastamento`: `Colaborador.dataBaseEscala12x36` era
+  convertido com `new Date(string)` puro, que interpreta
+  `"YYYY-MM-DD"` como meia-noite **UTC**. O cálculo de paridade
+  par/ímpar do `ESCALA_12X36` (`diaEsperadoTrabalho` em
+  `apuracao-engine.ts`) faz `data.getTime() - base.getTime()` sem
+  nenhuma folga de janela — nesta VPS (UTC+2) isso **inverte o dia de
+  trabalho/folga em 100% dos dias**, confirmado empiricamente. Nenhum
+  colaborador 12x36 existe em produção ainda (só 1 colaborador,
+  PADRAO_5X2, sem essa data) — **nenhum dado real foi corrompido**,
+  mas o próximo 12x36 cadastrado do jeito antigo teria a escala
+  inteira invertida silenciosamente. Mesmo problema também existia em
+  `TrocaEscala.data` (dormente nesta VPS porque as queries que usam
+  esse campo são sempre por janela `gte/lt`, que absorve fuso
+  positivo — mas quebraria num host a oeste de UTC, ex. Brasil
+  GMT-3). Os dois foram trocados para `parseDataISO`/`formatDataISO`
+  (mesmo padrão de `Afastamento`/`ObservacaoDia`). `Dockerfile` ganhou
+  `ENV TZ=UTC` como camada extra de proteção (não é o fix em si — o
+  código já resolve sozinho). Teste e2e novo cobre o caminho real
+  DTO→service→motor pra paridade do 12x36 (o teste unitário antigo só
+  testava o motor isolado, sem passar pela camada que tinha o bug).
+  Detalhes completos em memória do projeto
+  (`date-only-fields-convention.md`).
+
+**O que falta pra terminar isso:**
+1. `git push` (2 commits locais à frente de `origin/main`: `7a74a25`,
+   `c84b350` — `origin/main` ainda em `b90537d`).
+2. Redeploy em produção: nova migration `20260824161826_add_afastamento`
+   precisa ser aplicada no `prod.db` real (seguir o mesmo processo —
+   testar em cópia descartável primeiro, backup, parar container,
+   migrar, rebuild da imagem, recriar container preservando
+   env/rede/mount/porta). O fix de timezone não precisa de migration
+   própria (é só código), mas só entra no ar com o rebuild da imagem.
+3. Depois do redeploy, `docker inspect ponto-backend` pra confirmar que
+   o `TZ=UTC` do Dockerfile realmente chegou no container (`ENV` do
+   Dockerfile vira env var do container automaticamente, mas vale
+   conferir).
+4. Nenhum teste manual foi feito ainda em produção pra Afastamentos —
+   só testado em dev local (Playwright) e e2e. Fazer ao menos um teste
+   rápido via `/docs` ou túnel SSH depois do redeploy.
+
 ## Pipeline de extração via WhatsApp (`prompt-whatsapp-claude-code.md`)
 
 - **Seção 1 — `POST /extracoes-pendentes`**: ✅ implementada e testada
