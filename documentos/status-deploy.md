@@ -385,7 +385,7 @@ container Docker de produção):**
   **já atualizada** (2026-08-21) com o `N8N_WEBHOOK_SECRET` novo — só
   falta ativar o workflow quando for hora de receber mensagens reais.
 - **Git**: todos os commits foram enviados pro GitHub (`git push`),
-  último push em 2026-08-21 (`0d6e958`, `main` sincronizado com
+  último push em 2026-08-24 (`7be2268`, `main` sincronizado com
   `origin/main`).
 - **Testes e2e**: resolvido — `.env.test` criado (gitignorado, secrets
   fake só para teste) e bug de cleanup do `test/setup-e2e.ts` corrigido.
