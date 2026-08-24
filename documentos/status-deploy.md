@@ -9,7 +9,9 @@ nesta mesma pasta.
 
 - **Container**: `ponto-backend`, rodando a imagem `ponto-backend:latest`
   (buildada localmente nesta VPS a partir do `Dockerfile` na raiz,
-  **rebuildada em 2026-08-21** com o código completo da Fase 3).
+  **rebuildada em 2026-08-24** com Afastamento + fix de timezone +
+  `TZ=UTC`, commit `c84b350` — ver seção "Afastamento + fix de
+  timezone: redeployado" abaixo).
 - **Rede Docker**: `easypanel-artefinal` (mesma rede overlay do n8n,
   `artefinal_n8n`). URL interna: `http://ponto-backend:3000`.
   **Temporariamente** também publicada em `127.0.0.1:3002` (host) para
@@ -18,13 +20,15 @@ nesta mesma pasta.
 - **Restart policy**: `unless-stopped`.
 - **Banco**: SQLite em `/home/claude/ponto-backend-data/prod.db` (bind
   mount do host para `/app/data/prod.db` no container) — sobrevive a
-  rebuild/restart do container. 4 migrations aplicadas: `20260819180120_init`,
+  rebuild/restart do container. 5 migrations aplicadas: `20260819180120_init`,
   `20260820190644_add_extracao_pendente`,
-  `20260821144259_add_observacao_dia` e
-  `20260824125925_simplify_tipo_escala_and_merge_carga_12x36` (esta
-  última aplicada em 2026-08-24, ver seção própria abaixo). Dados
-  confirmados intactos depois do redeploy de 2026-08-24: 2
-  `ExtracaoPendente` de teste, 1 usuário, 0 colaboradores, 0 jornadas.
+  `20260821144259_add_observacao_dia`,
+  `20260824125925_simplify_tipo_escala_and_merge_carga_12x36` e
+  `20260824161826_add_afastamento` (esta última aplicada em
+  2026-08-24, ver seção própria abaixo). Dados confirmados intactos
+  depois do redeploy de 2026-08-24 (segunda leva): 2 `ExtracaoPendente`
+  de teste, 1 usuário, 1 colaborador (Marcia Ferreira da Cunha,
+  PADRAO_5X2), 0 jornadas.
 - Testado ponta a ponta: `GET /docs` acessível de dentro do container do
   n8n via `docker exec <n8n> wget http://ponto-backend:3000/docs`
   (retorna 200) e localmente via `curl 127.0.0.1:3002/docs`.
@@ -98,11 +102,38 @@ na cópia de teste, que tinha o mesmo estado vazio). Produção ainda não
 tem nenhuma jornada nem colaborador cadastrado — só 1 usuário e as 2
 `ExtracaoPendente` de teste antigas.
 
-## PENDENTE — Afastamento + fix de timezone (2026-08-24, sessão em andamento)
+## Atualização 2026-08-24 (continuação) — Afastamento + fix de timezone: redeployado
 
-**Status: implementado e commitado localmente, `git push` e redeploy
-em produção AINDA NÃO FEITOS.** Sessão pausada (usuário saiu, conexão
-pode cair) antes de chegar nessa etapa — continuar por aqui.
+**Status: concluído.** `git push` feito (`origin/main` em `7a35bf0`) e
+redeploy em produção feito, seguindo o mesmo processo de sempre
+(migration testada em cópia descartável, backup do `prod.db` real em
+`prod.db.bak-20260824193753-pre-afastamento`, container parado antes
+da migration, imagem rebuildada, container recriado com env/rede/mount
+capturados do anterior, porta `127.0.0.1:3002` preservada).
+
+Verificado depois do redeploy:
+- `PRAGMA table_info` confirma a migration `20260824161826_add_afastamento`
+  aplicada (`Afastamento` criada, `ApuracaoDiaria` com as 2 colunas
+  novas) e os dados existentes intactos (1 `Colaborador` — Marcia
+  Ferreira da Cunha, sem `dataBaseEscala12x36` então não afetada pelo
+  bug —, 1 `User`, 2 `ExtracaoPendente`).
+- `docker exec ponto-backend printenv TZ` → `UTC` confirmado (o
+  `ENV TZ=UTC` do Dockerfile pegou).
+- `/docs` responde 200 local (`127.0.0.1:3002`) e internamente (via
+  `docker exec` no container do n8n). Rotas de `/afastamentos`
+  mapeadas nos logs, zero erros.
+- **Não foi feito teste funcional autenticado contra a API de
+  produção** — a senha atual do `admin@empresa.com` em prod não é a
+  `admin123` do seed dev (o que é bom sinal: não é a credencial fraca
+  que se suspeitava), e não tentei adivinhar. Verificação ficou no
+  nível de schema/schema-migration/saúde do container, que já é sólido
+  dado que o código foi testado a fundo em dev (Playwright + 19 testes
+  e2e) antes deste redeploy. Se quiser um teste ponta a ponta real em
+  produção, seria necessário logar com a senha real (via túnel SSH,
+  não por aqui).
+
+Commits desta leva: `7a74a25` (feature Afastamento) e `c84b350` (fix
+de timezone + `TZ=UTC`), documentados abaixo.
 
 - Commit `7a74a25` — model novo `Afastamento` (spec
   `prompt-afastamentos-claude-code.md`): distingue ausência
@@ -140,22 +171,9 @@ pode cair) antes de chegar nessa etapa — continuar por aqui.
   Detalhes completos em memória do projeto
   (`date-only-fields-convention.md`).
 
-**O que falta pra terminar isso:**
-1. `git push` (2 commits locais à frente de `origin/main`: `7a74a25`,
-   `c84b350` — `origin/main` ainda em `b90537d`).
-2. Redeploy em produção: nova migration `20260824161826_add_afastamento`
-   precisa ser aplicada no `prod.db` real (seguir o mesmo processo —
-   testar em cópia descartável primeiro, backup, parar container,
-   migrar, rebuild da imagem, recriar container preservando
-   env/rede/mount/porta). O fix de timezone não precisa de migration
-   própria (é só código), mas só entra no ar com o rebuild da imagem.
-3. Depois do redeploy, `docker inspect ponto-backend` pra confirmar que
-   o `TZ=UTC` do Dockerfile realmente chegou no container (`ENV` do
-   Dockerfile vira env var do container automaticamente, mas vale
-   conferir).
-4. Nenhum teste manual foi feito ainda em produção pra Afastamentos —
-   só testado em dev local (Playwright) e e2e. Fazer ao menos um teste
-   rápido via `/docs` ou túnel SSH depois do redeploy.
+**Único pendente real:** teste funcional autenticado em produção (item
+acima) — precisa da senha real do `admin@empresa.com` de prod, que
+esta sessão não tem. Fora isso, nada pela metade.
 
 ## Pipeline de extração via WhatsApp (`prompt-whatsapp-claude-code.md`)
 
