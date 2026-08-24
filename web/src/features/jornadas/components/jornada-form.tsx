@@ -1,9 +1,10 @@
+import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { useCreateJornada, useUpdateJornada } from '../hooks'
 import { jornadaFormToInput, jornadaSchema, type JornadaFormValues } from '../schema'
-import { TIPO_ESCALA_LABEL, type Jornada } from '../types'
+import { TIPO_ESCALA_LABEL, calcularCargaDiariaEsperadaMin, type Jornada } from '../types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -24,6 +25,7 @@ export function JornadaForm({ jornada, onSaved }: JornadaFormProps) {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<JornadaFormValues>({
     resolver: zodResolver(jornadaSchema),
@@ -35,7 +37,6 @@ export function JornadaForm({ jornada, onSaved }: JornadaFormProps) {
       duracaoIntervaloMin: jornada?.duracaoIntervaloMin?.toString() ?? '',
       toleranciaIntervaloMin: jornada?.toleranciaIntervaloMin?.toString() ?? '10',
       cargaDiariaEsperadaMin: jornada?.cargaDiariaEsperadaMin?.toString() ?? '',
-      cargaTurno12x36Min: jornada?.cargaTurno12x36Min?.toString() ?? '',
       temAdicionalNoturno: jornada?.temAdicionalNoturno ?? false,
       horarioNoturnoInicio: jornada?.horarioNoturnoInicio ?? '22:00',
       horarioNoturnoFim: jornada?.horarioNoturnoFim ?? '05:00',
@@ -47,6 +48,21 @@ export function JornadaForm({ jornada, onSaved }: JornadaFormProps) {
 
   const tipo = watch('tipo')
   const temAdicionalNoturno = watch('temAdicionalNoturno')
+  const horaEntradaPadrao = watch('horaEntradaPadrao')
+  const horaSaidaPadrao = watch('horaSaidaPadrao')
+  const duracaoIntervaloMin = watch('duracaoIntervaloMin')
+
+  const cargaCalculada = calcularCargaDiariaEsperadaMin(
+    horaEntradaPadrao,
+    horaSaidaPadrao,
+    duracaoIntervaloMin ? Number(duracaoIntervaloMin) : undefined,
+  )
+  const cargaEhCalculada = tipo !== 'PERSONALIZADA'
+
+  useEffect(() => {
+    if (!cargaEhCalculada) return
+    setValue('cargaDiariaEsperadaMin', cargaCalculada !== null ? cargaCalculada.toString() : '')
+  }, [cargaEhCalculada, cargaCalculada, setValue])
 
   async function onSubmit(values: JornadaFormValues) {
     const input = jornadaFormToInput(values)
@@ -91,45 +107,46 @@ export function JornadaForm({ jornada, onSaved }: JornadaFormProps) {
           />
         </Field>
 
-        {tipo !== 'ESCALA_12X36' && (
-          <>
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel htmlFor="horaEntradaPadrao">Entrada padrão</FieldLabel>
-                <Input id="horaEntradaPadrao" type="time" {...register('horaEntradaPadrao')} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="horaSaidaPadrao">Saída padrão</FieldLabel>
-                <Input id="horaSaidaPadrao" type="time" {...register('horaSaidaPadrao')} />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel htmlFor="duracaoIntervaloMin">Duração do intervalo (min)</FieldLabel>
-                <Input id="duracaoIntervaloMin" inputMode="numeric" {...register('duracaoIntervaloMin')} />
-                <FieldError errors={[errors.duracaoIntervaloMin]} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="toleranciaIntervaloMin">Tolerância do intervalo (min)</FieldLabel>
-                <Input id="toleranciaIntervaloMin" inputMode="numeric" {...register('toleranciaIntervaloMin')} />
-                <FieldError errors={[errors.toleranciaIntervaloMin]} />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="cargaDiariaEsperadaMin">Carga diária esperada (min)</FieldLabel>
-              <Input id="cargaDiariaEsperadaMin" inputMode="numeric" {...register('cargaDiariaEsperadaMin')} />
-              <FieldError errors={[errors.cargaDiariaEsperadaMin]} />
-            </Field>
-          </>
-        )}
-
-        {tipo === 'ESCALA_12X36' && (
+        <div className="grid grid-cols-2 gap-3">
           <Field>
-            <FieldLabel htmlFor="cargaTurno12x36Min">Carga do turno 12x36 (min)</FieldLabel>
-            <Input id="cargaTurno12x36Min" inputMode="numeric" placeholder="720" {...register('cargaTurno12x36Min')} />
-            <FieldError errors={[errors.cargaTurno12x36Min]} />
+            <FieldLabel htmlFor="horaEntradaPadrao">
+              {tipo === 'ESCALA_12X36' ? 'Entrada do turno' : 'Entrada padrão'}
+            </FieldLabel>
+            <Input id="horaEntradaPadrao" type="time" {...register('horaEntradaPadrao')} />
           </Field>
-        )}
+          <Field>
+            <FieldLabel htmlFor="horaSaidaPadrao">
+              {tipo === 'ESCALA_12X36' ? 'Saída do turno' : 'Saída padrão'}
+            </FieldLabel>
+            <Input id="horaSaidaPadrao" type="time" {...register('horaSaidaPadrao')} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field>
+            <FieldLabel htmlFor="duracaoIntervaloMin">Duração do intervalo (min)</FieldLabel>
+            <Input id="duracaoIntervaloMin" inputMode="numeric" {...register('duracaoIntervaloMin')} />
+            <FieldError errors={[errors.duracaoIntervaloMin]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="toleranciaIntervaloMin">Tolerância do intervalo (min)</FieldLabel>
+            <Input id="toleranciaIntervaloMin" inputMode="numeric" {...register('toleranciaIntervaloMin')} />
+            <FieldError errors={[errors.toleranciaIntervaloMin]} />
+          </Field>
+        </div>
+        <Field>
+          <FieldLabel htmlFor="cargaDiariaEsperadaMin">
+            Carga diária esperada (min){cargaEhCalculada ? ' — calculada automaticamente' : ''}
+          </FieldLabel>
+          <Input
+            id="cargaDiariaEsperadaMin"
+            inputMode="numeric"
+            readOnly={cargaEhCalculada}
+            aria-readonly={cargaEhCalculada}
+            className={cargaEhCalculada ? 'bg-muted text-muted-foreground' : undefined}
+            {...register('cargaDiariaEsperadaMin')}
+          />
+          <FieldError errors={[errors.cargaDiariaEsperadaMin]} />
+        </Field>
 
         <Field>
           <FieldLabel htmlFor="toleranciaBancoHorasMin">Tolerância banco de horas (min)</FieldLabel>

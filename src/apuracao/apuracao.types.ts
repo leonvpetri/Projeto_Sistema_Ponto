@@ -3,7 +3,6 @@ import { TipoEscala } from '@prisma/client';
 export interface JornadaCalc {
   tipo: TipoEscala;
   cargaDiariaEsperadaMin?: number | null;
-  cargaTurno12x36Min?: number | null;
   duracaoIntervaloMin?: number | null;
   toleranciaIntervaloMin?: number | null;
   toleranciaBancoHorasMin: number;

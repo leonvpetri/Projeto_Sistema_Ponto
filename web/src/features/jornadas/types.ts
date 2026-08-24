@@ -1,4 +1,4 @@
-export type TipoEscala = 'PADRAO_5X2' | 'COMPENSADO_SABADO' | 'ESCALA_12X36' | 'PERSONALIZADA'
+export type TipoEscala = 'PADRAO_5X2' | 'ESCALA_12X36' | 'PERSONALIZADA'
 
 export interface Jornada {
   id: string
@@ -9,7 +9,6 @@ export interface Jornada {
   duracaoIntervaloMin: number | null
   toleranciaIntervaloMin: number | null
   cargaDiariaEsperadaMin: number | null
-  cargaTurno12x36Min: number | null
   temAdicionalNoturno: boolean
   horarioNoturnoInicio: string
   horarioNoturnoFim: string
@@ -26,7 +25,6 @@ export interface CreateJornadaInput {
   duracaoIntervaloMin?: number
   toleranciaIntervaloMin?: number
   cargaDiariaEsperadaMin?: number
-  cargaTurno12x36Min?: number
   temAdicionalNoturno?: boolean
   horarioNoturnoInicio?: string
   horarioNoturnoFim?: string
@@ -37,7 +35,26 @@ export interface CreateJornadaInput {
 
 export const TIPO_ESCALA_LABEL: Record<TipoEscala, string> = {
   PADRAO_5X2: 'Padrão 5x2',
-  COMPENSADO_SABADO: 'Compensado sábado',
   ESCALA_12X36: '12x36',
   PERSONALIZADA: 'Personalizada',
+}
+
+// (saída - entrada) - intervalo, em minutos. Trata virada de dia: se a saída
+// for <= entrada (ex.: 19:00 -> 08:00, caso comum do 12x36 noturno), soma 24h.
+export function calcularCargaDiariaEsperadaMin(
+  horaEntrada: string | undefined,
+  horaSaida: string | undefined,
+  duracaoIntervaloMin: number | undefined,
+): number | null {
+  if (!horaEntrada || !horaSaida) return null
+
+  const [hEntrada, mEntrada] = horaEntrada.split(':').map(Number)
+  const [hSaida, mSaida] = horaSaida.split(':').map(Number)
+  if ([hEntrada, mEntrada, hSaida, mSaida].some(Number.isNaN)) return null
+
+  const entradaMin = hEntrada * 60 + mEntrada
+  let saidaMin = hSaida * 60 + mSaida
+  if (saidaMin <= entradaMin) saidaMin += 24 * 60
+
+  return saidaMin - entradaMin - (duracaoIntervaloMin ?? 0)
 }

@@ -51,7 +51,7 @@ export function diaEsperadoTrabalho(
     };
   }
 
-  if (jornada.tipo === 'PADRAO_5X2' || jornada.tipo === 'COMPENSADO_SABADO') {
+  if (jornada.tipo === 'PADRAO_5X2') {
     const diaSemana = data.getDay(); // 0=domingo, 6=sábado
     return { esperado: diaSemana >= 1 && diaSemana <= 5, motivo: null };
   }
@@ -135,8 +135,10 @@ export function calcularMinutosNoturnos(
 }
 
 // ------------------------------------------------------------
-// 4) Valida o intervalo (relevante pra COMPENSADO_SABADO, onde o
-//    horário varia mas a DURAÇÃO tem que ser fixa).
+// 4) Valida o intervalo pela DURAÇÃO real (não por horário fixo) —
+//    vale pra qualquer jornada com duracaoIntervaloMin configurado,
+//    inclusive ESCALA_12X36 (pausa de 1h em horário variável dentro
+//    do turno).
 // ------------------------------------------------------------
 export function validarIntervalo(
   intervalos: IntervaloCalc[],
@@ -182,10 +184,7 @@ export function calcularApuracaoDia(params: {
 
   validarIntervalo(intervalos, jornada, alertas);
 
-  const cargaEsperadaMin =
-    jornada.tipo === 'ESCALA_12X36'
-      ? (jornada.cargaTurno12x36Min ?? 0)
-      : (jornada.cargaDiariaEsperadaMin ?? 0);
+  const cargaEsperadaMin = jornada.cargaDiariaEsperadaMin ?? 0;
 
   let status: ApuracaoResultado['status'];
   const diferencaMin = totalMin - (esperado ? cargaEsperadaMin : 0);

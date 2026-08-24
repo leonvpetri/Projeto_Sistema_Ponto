@@ -38,7 +38,7 @@ async function main() {
     create: {
       id: 'jornada-comercial-compensado-sabado',
       nome: 'Comercial Compensado Sábado',
-      tipo: 'COMPENSADO_SABADO',
+      tipo: 'PADRAO_5X2',
       horaEntradaPadrao: '08:00',
       horaSaidaPadrao: '18:00',
       duracaoIntervaloMin: 90,
@@ -55,7 +55,11 @@ async function main() {
       id: 'jornada-12x36-noturno',
       nome: 'Escala 12x36 Noturno (Portaria/Vigilância)',
       tipo: 'ESCALA_12X36',
-      cargaTurno12x36Min: 12 * 60,
+      horaEntradaPadrao: '19:00',
+      horaSaidaPadrao: '08:00', // vira o dia — turno de 13h de janela, 1h de intervalo, 12h líquidas
+      duracaoIntervaloMin: 60,
+      toleranciaIntervaloMin: 10,
+      cargaDiariaEsperadaMin: 12 * 60, // 13h de janela - 1h intervalo
       toleranciaBancoHorasMin: 10,
       temAdicionalNoturno: true,
       horarioNoturnoInicio: '22:00',

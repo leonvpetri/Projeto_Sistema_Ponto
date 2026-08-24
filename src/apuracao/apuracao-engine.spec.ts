@@ -46,9 +46,9 @@ describe('ApuracaoEngine — calcularApuracaoDia', () => {
     expect(resultado.alertas).toEqual([]);
   });
 
-  it('Cenário 2 — Comercial (COMPENSADO_SABADO): intervalo variável dentro da tolerância', () => {
+  it('Cenário 2 — Comercial (PADRAO_5X2, janela maior compensando sábado): intervalo variável dentro da tolerância', () => {
     const jornadaComercial: JornadaCalc = {
-      tipo: 'COMPENSADO_SABADO',
+      tipo: 'PADRAO_5X2',
       cargaDiariaEsperadaMin: 8 * 60 + 30,
       duracaoIntervaloMin: 90,
       toleranciaIntervaloMin: 10,
@@ -83,7 +83,7 @@ describe('ApuracaoEngine — calcularApuracaoDia', () => {
   it('Cenário 3 — Porteiro (ESCALA_12X36 noturno): adicional noturno com hora reduzida', () => {
     const jornada12x36Noturno: JornadaCalc = {
       tipo: 'ESCALA_12X36',
-      cargaTurno12x36Min: 12 * 60,
+      cargaDiariaEsperadaMin: 12 * 60,
       toleranciaBancoHorasMin: 10,
       temAdicionalNoturno: true,
       horarioNoturnoInicio: '22:00',

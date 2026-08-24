@@ -32,8 +32,7 @@ model User {
 // TIPOS DE ESCALA SUPORTADOS
 // ------------------------------------------------------------
 enum TipoEscala {
-  PADRAO_5X2 // seg-sex, jornada fixa diária, sem sábado
-  COMPENSADO_SABADO // seg-sex, janela maior, intervalo compensa o sábado
+  PADRAO_5X2 // seg-sex, jornada fixa diária (janela pode incluir intervalo maior p/ compensar sábado)
   ESCALA_12X36 // 12h trabalhadas, 36h de descanso, alternado
   PERSONALIZADA // fallback pra casos futuros não previstos
 }
@@ -85,15 +84,17 @@ model Jornada {
   nome String // ex: "Administrativo Padrão", "Comercial Compensado Sábado"
   tipo TipoEscala
 
-  // --- PADRAO_5X2 e COMPENSADO_SABADO ---
+  // --- comuns a todos os tipos (PADRAO_5X2, ESCALA_12X36 e PERSONALIZADA) ---
+  // duracaoIntervaloMin é validado pela DURAÇÃO real do intervalo, nunca por
+  // horário fixo — inclusive no ESCALA_12X36, que também tem 1h de pausa
+  // dentro do turno em horário variável.
   horaEntradaPadrao      String? // "08:00" — referência, não obrigatória p/ validação
-  horaSaidaPadrao        String? // "18:00"
-  duracaoIntervaloMin    Int? // 90 (1h30) — validado pela DURAÇÃO, não horário fixo
+  horaSaidaPadrao        String? // "18:00" (pode ser < horaEntradaPadrao: turno vira o dia, ex. 12x36 noturno)
+  duracaoIntervaloMin    Int? // 90 (1h30)
   toleranciaIntervaloMin Int?    @default(10) // margem de tolerância na duração do intervalo
-  cargaDiariaEsperadaMin Int? // calculada: (saida-entrada) - intervalo, em minutos
-
-  // --- ESCALA_12X36 ---
-  cargaTurno12x36Min Int? // normalmente 720 (12h)
+  // calculada automaticamente como (saida-entrada)-intervalo (tratando virada
+  // de dia) para PADRAO_5X2 e ESCALA_12X36; só PERSONALIZADA é editável manual
+  cargaDiariaEsperadaMin Int?
 
   // --- ADICIONAL NOTURNO (aplicável a qualquer tipo de jornada) ---
   temAdicionalNoturno        Boolean @default(false)

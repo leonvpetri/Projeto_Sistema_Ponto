@@ -7,13 +7,12 @@ const optionalInt = z
 
 export const jornadaSchema = z.object({
   nome: z.string().min(1, 'Informe o nome'),
-  tipo: z.enum(['PADRAO_5X2', 'COMPENSADO_SABADO', 'ESCALA_12X36', 'PERSONALIZADA']),
+  tipo: z.enum(['PADRAO_5X2', 'ESCALA_12X36', 'PERSONALIZADA']),
   horaEntradaPadrao: z.string().optional(),
   horaSaidaPadrao: z.string().optional(),
   duracaoIntervaloMin: optionalInt,
   toleranciaIntervaloMin: optionalInt,
   cargaDiariaEsperadaMin: optionalInt,
-  cargaTurno12x36Min: optionalInt,
   temAdicionalNoturno: z.boolean(),
   horarioNoturnoInicio: z.string().optional(),
   horarioNoturnoFim: z.string().optional(),
@@ -38,7 +37,6 @@ export function jornadaFormToInput(values: JornadaFormValues) {
     duracaoIntervaloMin: values.duracaoIntervaloMin ? Number(values.duracaoIntervaloMin) : undefined,
     toleranciaIntervaloMin: values.toleranciaIntervaloMin ? Number(values.toleranciaIntervaloMin) : undefined,
     cargaDiariaEsperadaMin: values.cargaDiariaEsperadaMin ? Number(values.cargaDiariaEsperadaMin) : undefined,
-    cargaTurno12x36Min: values.cargaTurno12x36Min ? Number(values.cargaTurno12x36Min) : undefined,
     temAdicionalNoturno: values.temAdicionalNoturno,
     horarioNoturnoInicio: values.horarioNoturnoInicio || undefined,
     horarioNoturnoFim: values.horarioNoturnoFim || undefined,

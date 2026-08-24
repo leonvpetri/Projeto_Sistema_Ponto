@@ -47,12 +47,6 @@ export class CreateJornadaDto {
   @Min(0)
   cargaDiariaEsperadaMin?: number;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  cargaTurno12x36Min?: number;
-
   @ApiProperty({ required: false, default: false })
   @IsOptional()
   @IsBoolean()
