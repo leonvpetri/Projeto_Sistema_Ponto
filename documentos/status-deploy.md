@@ -18,13 +18,13 @@ nesta mesma pasta.
 - **Restart policy**: `unless-stopped`.
 - **Banco**: SQLite em `/home/claude/ponto-backend-data/prod.db` (bind
   mount do host para `/app/data/prod.db` no container) — sobrevive a
-  rebuild/restart do container. 3 migrations aplicadas: `20260819180120_init`,
-  `20260820190644_add_extracao_pendente` e
-  `20260821144259_add_observacao_dia` (aplicada em 2026-08-21 contra o
-  banco real, após backup em
-  `/home/claude/ponto-backend-data/prod.db.bak-20260821-pre-observacao-dia`).
-  Dados confirmados intactos depois do redeploy: 2 `ExtracaoPendente` de
-  teste, 0 usuários, 0 colaboradores.
+  rebuild/restart do container. 4 migrations aplicadas: `20260819180120_init`,
+  `20260820190644_add_extracao_pendente`,
+  `20260821144259_add_observacao_dia` e
+  `20260824125925_simplify_tipo_escala_and_merge_carga_12x36` (esta
+  última aplicada em 2026-08-24, ver seção própria abaixo). Dados
+  confirmados intactos depois do redeploy de 2026-08-24: 2
+  `ExtracaoPendente` de teste, 1 usuário, 0 colaboradores, 0 jornadas.
 - Testado ponta a ponta: `GET /docs` acessível de dentro do container do
   n8n via `docker exec <n8n> wget http://ponto-backend:3000/docs`
   (retorna 200) e localmente via `curl 127.0.0.1:3002/docs`.
@@ -57,6 +57,46 @@ cadastrados (sem sessão pra invalidar) e o workflow do n8n já estava
 inativo (sem tráfego real dependendo do webhook secret). Porta correta
 usada depois: **3002** (3000 e 3001 já estavam ocupados nesta VPS — ver
 `vps-shared-infra` na memória do projeto).
+
+## Atualização 2026-08-24 — simplificação do TipoEscala
+
+Commit `572d952`: enum `TipoEscala` perde `COMPENSADO_SABADO` (vira
+`PADRAO_5X2` — mesma regra de negócio já era aplicada igual) e o campo
+`cargaTurno12x36Min` é removido do model `Jornada` (mergeado em
+`cargaDiariaEsperadaMin`, agora calculado automaticamente no front-end
+a partir de entrada/saída/intervalo, com tratamento de virada de dia).
+Migration `20260824125925_simplify_tipo_escala_and_merge_carga_12x36`
+faz o data-fix (`UPDATE` de tipo e de valor) antes do `DROP COLUMN`.
+
+Redeploy feito nesta VPS, mesma checkout usada tanto pra dev quanto
+pra build da imagem prod:
+1. Migration testada primeiro numa cópia descartável do `prod.db` (fora
+   do bind mount, em `/tmp`) — aplicou sem erro.
+2. Backup do `prod.db` real:
+   `/home/claude/ponto-backend-data/prod.db.bak-20260824-pre-simplify-tipo-escala`.
+3. Container antigo parado (`docker stop`) antes de rodar a migration
+   contra o `prod.db` real, pra evitar concorrência de escrita com o
+   schema antigo.
+4. Migration aplicada contra o `prod.db` real — verificado via
+   `PRAGMA table_info(Jornada)` que a coluna `cargaTurno12x36Min` saiu
+   e os outros dados (`User`, `ExtracaoPendente`) continuam intactos.
+5. Imagem rebuildada (`docker build -t ponto-backend:latest .`),
+   container recriado com env/rede/mount/porta idênticos ao anterior
+   (env capturado do container antigo pro arquivo antes do
+   `stop`+`rm`, pra não repetir o incidente de perda de secret de
+   2026-08-21).
+6. Verificado no ar: `/docs` responde 200 tanto local (`127.0.0.1:3002`)
+   quanto de dentro da rede Docker (via `docker exec` no container do
+   n8n), sem erros nos logs.
+
+**Achado importante**: a tabela `Jornada` (e `Colaborador`) em produção
+está **vazia** (0 linhas) — nunca chegou a ser populada lá, só existe
+no seed usado em dev local. Ou seja, não havia nenhuma jornada
+`COMPENSADO_SABADO` real em produção pra essa migration converter; o
+data-fix rodou como no-op no `prod.db` real (validado como funcional
+na cópia de teste, que tinha o mesmo estado vazio). Produção ainda não
+tem nenhuma jornada nem colaborador cadastrado — só 1 usuário e as 2
+`ExtracaoPendente` de teste antigas.
 
 ## Pipeline de extração via WhatsApp (`prompt-whatsapp-claude-code.md`)
 
