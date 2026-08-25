@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseGuards,
@@ -18,6 +19,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RegistrosPontoService } from './registros-ponto.service';
 import { CreateRegistroPontoDto } from './dto/create-registro-ponto.dto';
 import { ListarRegistrosPontoQueryDto } from './dto/listar-registros-ponto-query.dto';
+import { SubstituirRegistrosDoDiaDto } from './dto/substituir-registros-dia.dto';
 import { periodoDoMes } from '../apuracao/date-utils';
 import { ExtracaoFotoService } from './extracao-foto.service';
 
@@ -35,6 +37,11 @@ export class RegistrosPontoController {
   @Post()
   create(@Body() dto: CreateRegistroPontoDto) {
     return this.registrosPontoService.create(dto);
+  }
+
+  @Put('dia')
+  substituirDia(@Body() dto: SubstituirRegistrosDoDiaDto) {
+    return this.registrosPontoService.substituirRegistrosDoDia(dto);
   }
 
   @Get()

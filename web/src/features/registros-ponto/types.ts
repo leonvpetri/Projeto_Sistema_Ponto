@@ -15,6 +15,12 @@ export interface CreateRegistroPontoInput {
   origem?: string
 }
 
+export interface SubstituirRegistrosDoDiaInput {
+  colaboradorId: string
+  data: string
+  registros: { dataHora: string; tipo: TipoRegistro; origem?: string }[]
+}
+
 export const TIPO_REGISTRO_LABEL: Record<TipoRegistro, string> = {
   ENTRADA_1: 'Entrada 1',
   SAIDA_1: 'Saída 1',

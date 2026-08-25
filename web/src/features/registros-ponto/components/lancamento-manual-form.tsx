@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { useColaboradores } from '@/features/colaboradores/hooks'
-import { useCreateRegistroPonto, useRegistrosPontoDoDia } from '../hooks'
+import { useCreateRegistroPonto, useRegistrosPontoDoDia, useSubstituirRegistrosDoDia } from '../hooks'
 import { TIPO_REGISTRO_LABEL, type TipoRegistro } from '../types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +48,7 @@ export function LancamentoManualForm() {
   const { data: colaboradores = [] } = useColaboradores()
   const colaboradoresAtivos = colaboradores.filter((c) => c.ativo)
   const createRegistroPonto = useCreateRegistroPonto()
+  const substituirRegistrosDoDia = useSubstituirRegistrosDoDia()
 
   const {
     control,
@@ -72,6 +73,38 @@ export function LancamentoManualForm() {
     setResultado(null)
     const campos = ['entrada1', 'saida1', 'entrada2', 'saida2'] as const
     const preenchidos = campos.filter((campo) => values[campo])
+
+    // Dia já tem lançamento: edita substituindo o dia inteiro (apagar+recriar
+    // no backend), pra não duplicar RegistroPonto. Preserva os tipos que já
+    // existiam e não foram tocados neste envio.
+    if (registrosDoDia.length > 0) {
+      const porTipo = new Map(registrosDoDia.map((registro) => [registro.tipo, registro]))
+      const registrosFinais = campos
+        .map((campo) => {
+          const tipo = CAMPO_PARA_TIPO[campo]
+          if (values[campo]) {
+            return { dataHora: `${values.data}T${values[campo]}:00`, tipo, origem: 'CARTAO_MECANICO' }
+          }
+          const existente = porTipo.get(tipo)
+          return existente ? { dataHora: existente.dataHora, tipo, origem: existente.origem } : null
+        })
+        .filter((registro): registro is NonNullable<typeof registro> => registro !== null)
+
+      try {
+        await substituirRegistrosDoDia.mutateAsync({
+          colaboradorId: values.colaboradorId,
+          data: values.data,
+          registros: registrosFinais,
+        })
+        preenchidos.forEach((campo) => resetField(campo, { defaultValue: '' }))
+        setResultado({ salvos: preenchidos.length, falhas: [] })
+        toast.success(`${preenchidos.length} lançamento(s) salvo(s).`)
+      } catch {
+        setResultado({ salvos: 0, falhas: preenchidos.map((campo) => TIPO_REGISTRO_LABEL[CAMPO_PARA_TIPO[campo]]) })
+        toast.error('Falha ao salvar os lançamentos.')
+      }
+      return
+    }
 
     const resultados = await Promise.allSettled(
       preenchidos.map((campo) =>
@@ -157,8 +190,8 @@ export function LancamentoManualForm() {
                 <Input id={campo} type="time" {...register(campo)} />
                 {jaLancado && (
                   <p className="text-xs text-amber-600">
-                    Já existe um lançamento de {TIPO_REGISTRO_LABEL[tipo]} neste dia — salvar de novo criará um
-                    registro duplicado.
+                    Já existe um lançamento de {TIPO_REGISTRO_LABEL[tipo]} neste dia — preencher aqui substitui o
+                    horário existente.
                   </p>
                 )}
               </Field>

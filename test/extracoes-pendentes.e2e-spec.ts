@@ -110,6 +110,24 @@ describe('Fila do WhatsApp — revisão do RH (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ motivoRejeicao: 'teste' });
     expect(rejeitarDeNovo.status).toBe(409);
+
+    // confirmar de novo (ex.: RH clicou 2x) também é bloqueado — e, mais
+    // importante, não duplica os RegistroPonto já criados na 1ª confirmação
+    const confirmarDeNovo = await request(app.getHttpServer())
+      .post(`/extracoes-pendentes/${id}/confirmar`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        registros: [
+          { dataHora: '2026-08-20T11:00:00Z', tipo: 'ENTRADA_1' },
+          { dataHora: '2026-08-20T20:00:00Z', tipo: 'SAIDA_2' },
+        ],
+      });
+    expect(confirmarDeNovo.status).toBe(409);
+
+    const criadosDepoisDoRetry = await prisma.registroPonto.findMany({
+      where: { colaboradorId, origem: 'IMPORTACAO_FOTO' },
+    });
+    expect(criadosDepoisDoRetry).toHaveLength(2);
   });
 
   it('rejeita uma extração com mismatch de nome/CPF', async () => {

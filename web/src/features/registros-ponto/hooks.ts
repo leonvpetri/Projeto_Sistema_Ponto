@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createRegistroPonto, extrairFoto, listRegistrosPontoDoDia, listRegistrosPontoDoMes } from './api'
-import type { CreateRegistroPontoInput } from './types'
+import {
+  createRegistroPonto,
+  extrairFoto,
+  listRegistrosPontoDoDia,
+  listRegistrosPontoDoMes,
+  substituirRegistrosDoDia,
+} from './api'
+import type { CreateRegistroPontoInput, SubstituirRegistrosDoDiaInput } from './types'
 
 export function registrosPontoDoDiaKey(colaboradorId: string, data: string) {
   return ['registros-ponto', colaboradorId, data]
@@ -33,6 +39,16 @@ export function useCreateRegistroPonto() {
     onSuccess: (_data, variables) => {
       const data = variables.dataHora.slice(0, 10)
       queryClient.invalidateQueries({ queryKey: registrosPontoDoDiaKey(variables.colaboradorId, data) })
+    },
+  })
+}
+
+export function useSubstituirRegistrosDoDia() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: SubstituirRegistrosDoDiaInput) => substituirRegistrosDoDia(input),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: registrosPontoDoDiaKey(variables.colaboradorId, variables.data) })
     },
   })
 }
