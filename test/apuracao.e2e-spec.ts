@@ -289,4 +289,185 @@ describe('Fluxo completo de apuração (e2e)', () => {
     expect((porData.get('2026-08-03') as { diaEsperadoTrabalho: boolean }).diaEsperadoTrabalho).toBe(true);
     expect((porData.get('2026-08-04') as { diaEsperadoTrabalho: boolean }).diaEsperadoTrabalho).toBe(false);
   });
+
+  it('12x36 noturno que atravessa a virada (turno pertence ao dia de entrada, não à data civil da saída)', async () => {
+    const jornadaNoturnaRes = await request(app.getHttpServer())
+      .post('/jornadas')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        nome: '12x36 Noturno E2E',
+        tipo: 'ESCALA_12X36',
+        horaEntradaPadrao: '18:00',
+        horaSaidaPadrao: '06:00',
+        cargaDiariaEsperadaMin: 720,
+        toleranciaBancoHorasMin: 10,
+      })
+      .expect(201);
+    const jornadaNoturnaId = jornadaNoturnaRes.body.id;
+
+    async function processaCenario(nome: string, cpf: string, entradaISO: string, saidaISO: string) {
+      const colaboradorRes = await request(app.getHttpServer())
+        .post('/colaboradores')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          nome,
+          cpf,
+          setor: 'Segurança',
+          jornadaId: jornadaNoturnaId,
+          dataBaseEscala12x36: '2026-08-16',
+        })
+        .expect(201);
+      const colaboradorNoturnoId = colaboradorRes.body.id;
+
+      for (const [dataHora, tipo] of [
+        [entradaISO, 'ENTRADA_1'],
+        [saidaISO, 'SAIDA_1'],
+      ]) {
+        await request(app.getHttpServer())
+          .post('/registros-ponto')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ colaboradorId: colaboradorNoturnoId, dataHora, tipo })
+          .expect(201);
+      }
+
+      await request(app.getHttpServer())
+        .post('/admin/apuracao/processar')
+        .query({ mes: '2026-08' })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(201);
+
+      const espelhoRes = await request(app.getHttpServer())
+        .get('/admin/apuracao')
+        .query({ colaboradorId: colaboradorNoturnoId, mes: '2026-08' })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      return new Map(espelhoRes.body.map((d: { data: string }) => [d.data, d]));
+    }
+
+    // Cenário do Antônio: entrada 16/08 17:49, saída 17/08 05:58.
+    const porDataAntonio = await processaCenario(
+      'Antônio Noturno E2E',
+      '55566677788',
+      '2026-08-16T17:49:00',
+      '2026-08-17T05:58:00',
+    );
+
+    const dia16 = porDataAntonio.get('2026-08-16') as {
+      diaEsperadoTrabalho: boolean;
+      totalTrabalhadoMin: number | null;
+      status: string;
+      alertas: string[];
+    };
+    expect(dia16.diaEsperadoTrabalho).toBe(true);
+    expect(dia16.totalTrabalhadoMin).toBe(729); // 17:49 → 05:58 (~12h09)
+    expect(dia16.status).not.toBe('INCONSISTENTE');
+    expect(dia16.alertas).not.toContain('Número ímpar de batidas no dia — falta uma marcação (entrada ou saída)');
+    expect(dia16.alertas.some((a) => a.includes('Trabalhou em dia de folga'))).toBe(false);
+
+    const dia17 = porDataAntonio.get('2026-08-17') as {
+      diaEsperadoTrabalho: boolean;
+      totalTrabalhadoMin: number | null;
+      status: string;
+    };
+    expect(dia17.diaEsperadoTrabalho).toBe(false);
+    expect(dia17.status).toBe('FOLGA');
+    expect(dia17.totalTrabalhadoMin).toBeNull();
+
+    // Colaborador batendo bem mais adiantado que o Antônio (2h antes da
+    // entrada padrão 18:00) — é justamente esse tipo de adiantamento que
+    // quebrava a primeira versão da correção (corte colado na hora de
+    // entrada padrão, em vez de no meio do intervalo de descanso).
+    const porDataAdiantado = await processaCenario(
+      'Colaborador Noturno Adiantado E2E',
+      '55566677799',
+      '2026-08-16T16:00:00',
+      '2026-08-17T05:58:00',
+    );
+
+    const dia16Adiantado = porDataAdiantado.get('2026-08-16') as {
+      diaEsperadoTrabalho: boolean;
+      totalTrabalhadoMin: number | null;
+      status: string;
+      alertas: string[];
+    };
+    expect(dia16Adiantado.diaEsperadoTrabalho).toBe(true);
+    expect(dia16Adiantado.totalTrabalhadoMin).toBe(838); // 16:00 → 05:58 (~13h58)
+    expect(dia16Adiantado.status).not.toBe('INCONSISTENTE');
+    expect(
+      dia16Adiantado.alertas.some((a) => a.includes('Trabalhou em dia de folga')),
+    ).toBe(false);
+
+    const dia17Adiantado = porDataAdiantado.get('2026-08-17') as {
+      diaEsperadoTrabalho: boolean;
+      status: string;
+    };
+    expect(dia17Adiantado.diaEsperadoTrabalho).toBe(false);
+    expect(dia17Adiantado.status).toBe('FOLGA');
+  });
+
+  it('12x36 diurno (Daniela, 06:00→18:00) continua com a janela civil de sempre — sem mudança de comportamento', async () => {
+    const jornadaDiurnaRes = await request(app.getHttpServer())
+      .post('/jornadas')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        nome: '12x36 Diurno Daniela E2E',
+        tipo: 'ESCALA_12X36',
+        horaEntradaPadrao: '06:00',
+        horaSaidaPadrao: '18:00',
+        cargaDiariaEsperadaMin: 720,
+        toleranciaBancoHorasMin: 10,
+      })
+      .expect(201);
+
+    const danielaRes = await request(app.getHttpServer())
+      .post('/colaboradores')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        nome: 'Daniela 12x36 E2E',
+        cpf: '55566677700',
+        setor: 'Portaria',
+        jornadaId: jornadaDiurnaRes.body.id,
+        dataBaseEscala12x36: '2026-08-16',
+      })
+      .expect(201);
+    const danielaId = danielaRes.body.id;
+
+    for (const [dataHora, tipo] of [
+      ['2026-08-16T06:00:00', 'ENTRADA_1'],
+      ['2026-08-16T18:00:00', 'SAIDA_1'],
+    ]) {
+      await request(app.getHttpServer())
+        .post('/registros-ponto')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ colaboradorId: danielaId, dataHora, tipo })
+        .expect(201);
+    }
+
+    await request(app.getHttpServer())
+      .post('/admin/apuracao/processar')
+      .query({ mes: '2026-08' })
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+
+    const espelhoRes = await request(app.getHttpServer())
+      .get('/admin/apuracao')
+      .query({ colaboradorId: danielaId, mes: '2026-08' })
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    const porData = new Map(espelhoRes.body.map((d: { data: string }) => [d.data, d]));
+    const dia16 = porData.get('2026-08-16') as {
+      diaEsperadoTrabalho: boolean;
+      totalTrabalhadoMin: number | null;
+      status: string;
+    };
+    expect(dia16.diaEsperadoTrabalho).toBe(true);
+    expect(dia16.totalTrabalhadoMin).toBe(720); // 06:00 → 18:00, 12h certinhas
+    expect(dia16.status).toBe('OK');
+
+    const dia17 = porData.get('2026-08-17') as { diaEsperadoTrabalho: boolean; status: string };
+    expect(dia17.diaEsperadoTrabalho).toBe(false);
+    expect(dia17.status).toBe('FOLGA');
+  });
 });

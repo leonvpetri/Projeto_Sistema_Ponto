@@ -37,6 +37,44 @@ export function parseDataHoraLiteralUTC(dataHoraStr: string): Date {
   );
 }
 
+// Turno que atravessa a meia-noite (ex.: 12x36 noturno 18:00→06:00) não pode
+// usar a janela civil 00:00-23:59 pra buscar "batidas do dia" — entrada e
+// saída caem em datas de calendário diferentes e o pareamento quebra
+// (batida ímpar nos dois dias). Decisão de negócio: o turno pertence ao dia
+// da ENTRADA. O corte entre um dia de apuração e o seguinte fica no meio do
+// intervalo de descanso (entre a saída padrão de um turno e a entrada padrão
+// do próximo) em vez de exatamente na hora de entrada padrão — colado na
+// hora de entrada, um colaborador que bate um pouco adiantado (comportamento
+// normal) cairia na janela do dia anterior. Jornadas onde a saída padrão não
+// é menor que a entrada padrão (turno não cruza meia-noite, ex.: 12x36
+// diurno 06:00→18:00) continuam com a janela civil de sempre.
+export function janelaBatidasDoDia(
+  jornada: { horaEntradaPadrao?: string | null; horaSaidaPadrao?: string | null },
+  inicioDiaCivil: Date,
+  fimDiaCivil: Date,
+): { inicio: Date; fim: Date } {
+  if (jornada.horaEntradaPadrao && jornada.horaSaidaPadrao) {
+    const [hEnt, mEnt] = jornada.horaEntradaPadrao.split(':').map(Number);
+    const [hSai, mSai] = jornada.horaSaidaPadrao.split(':').map(Number);
+    const minEntrada = hEnt * 60 + mEnt;
+    const minSaida = hSai * 60 + mSai;
+
+    if (minSaida < minEntrada) {
+      const minCorte = Math.round((minSaida + minEntrada) / 2) % (24 * 60);
+      const hCorte = Math.floor(minCorte / 60);
+      const mCorte = minCorte % 60;
+
+      const inicio = new Date(inicioDiaCivil);
+      inicio.setHours(hCorte, mCorte, 0, 0);
+      const fim = new Date(fimDiaCivil);
+      fim.setHours(hCorte, mCorte, 0, 0);
+      return { inicio, fim };
+    }
+  }
+
+  return { inicio: inicioDiaCivil, fim: fimDiaCivil };
+}
+
 /** Converte "YYYY-MM" no intervalo [primeiro dia, primeiro dia do mês seguinte). */
 export function periodoDoMes(mes: string): { inicio: Date; fim: Date } {
   const [ano, mesNum] = mes.split('-').map(Number);

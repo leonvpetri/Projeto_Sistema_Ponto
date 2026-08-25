@@ -3,7 +3,7 @@ import { Colaborador, Jornada } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularApuracaoDia } from './apuracao-engine';
 import { ApuracaoResultado, StatusApuracao } from './apuracao.types';
-import { formatDataISO, periodoDoMes } from './date-utils';
+import { formatDataISO, janelaBatidasDoDia, periodoDoMes } from './date-utils';
 
 type ColaboradorComJornada = Colaborador & { jornada: Jornada };
 
@@ -41,10 +41,15 @@ export class ApuracaoService {
   private async processarDia(colaborador: ColaboradorComJornada, data: Date): Promise<void> {
     const inicioDia = new Date(data.getFullYear(), data.getMonth(), data.getDate());
     const fimDia = new Date(inicioDia.getFullYear(), inicioDia.getMonth(), inicioDia.getDate() + 1);
+    const { inicio: inicioBusca, fim: fimBusca } = janelaBatidasDoDia(
+      colaborador.jornada,
+      inicioDia,
+      fimDia,
+    );
 
     const [registrosDoDia, trocasDoDia, afastamentosDoDia] = await Promise.all([
       this.prisma.registroPonto.findMany({
-        where: { colaboradorId: colaborador.id, dataHora: { gte: inicioDia, lt: fimDia } },
+        where: { colaboradorId: colaborador.id, dataHora: { gte: inicioBusca, lt: fimBusca } },
         orderBy: { dataHora: 'asc' },
       }),
       this.prisma.trocaEscala.findMany({
